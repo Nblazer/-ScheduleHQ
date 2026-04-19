@@ -10,10 +10,10 @@ import { inviteSchema } from "@/lib/validation";
 type Result<T = {}> = ({ ok: true } & T) | { ok: false; error: string };
 
 export type InviteActionResult = Result<{
-  outcome: "added" | "invited";
   email: string;
   name: string;
-  inviteLink?: string;
+  inviteLink: string;
+  alreadyHasAccount: boolean;
 }>;
 
 export async function inviteAction(
@@ -45,20 +45,12 @@ export async function inviteAction(
       role: parsed.data.role,
     });
     revalidatePath("/team");
-    if (outcome.kind === "added") {
-      return {
-        ok: true,
-        outcome: "added",
-        email: outcome.email,
-        name: outcome.name,
-      };
-    }
     return {
       ok: true,
-      outcome: "invited",
       email: outcome.email,
       name: outcome.name,
       inviteLink: inviteUrl(outcome.token),
+      alreadyHasAccount: outcome.alreadyHasAccount,
     };
   } catch (err: unknown) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not send invite." };

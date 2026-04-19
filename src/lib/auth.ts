@@ -106,13 +106,18 @@ export async function resendVerification(userId: string) {
   );
 }
 
-export type InviteOutcome =
-  | { kind: "added"; userId: string; name: string; email: string }
-  | { kind: "invited"; inviteId: string; token: string; email: string; name: string };
+export type InviteOutcome = {
+  inviteId: string;
+  token: string;
+  email: string;
+  name: string;
+  alreadyHasAccount: boolean;
+};
 
 // Invite someone to an organization.
-// If the email belongs to an existing ScheduleHQ user, add them as a Membership directly.
-// Otherwise, create an Invite + email them a link to set a password and join.
+// Always creates an Invite + link that the invitee must explicitly accept.
+// Works whether or not they already have a ScheduleHQ account — the accept
+// page branches on that server-side.
 export async function inviteToOrganization(params: {
   organizationId: string;
   organizationName: string;
@@ -132,36 +137,28 @@ export async function inviteToOrganization(params: {
     const already = existingUser.memberships.find(
       (m) => m.organizationId === params.organizationId,
     );
-    if (already) {
-      if (already.active) throw new Error("This user is already a member of this workspace.");
-      // Reactivate if they were deactivated here before.
-      await prisma.membership.update({
-        where: { id: already.id },
-        data: { active: true, role: params.role },
-      });
-    } else {
-      await prisma.membership.create({
-        data: {
-          userId: existingUser.id,
-          organizationId: params.organizationId,
-          role: params.role,
-        },
-      });
+    if (already && already.active) {
+      throw new Error("This user is already a member of this workspace.");
     }
-    sendEmail(
-      existingUser.email,
-      `You've been added to ${params.organizationName} on ScheduleHQ`,
-      addedToOrgEmail({
-        name: existingUser.name,
-        inviterName: params.inviterName,
-        orgName: params.organizationName,
-      }),
-    ).catch((e) => console.error("added-to-org email failed", e));
+  }
+
+  // If there's already a pending, non-expired invite for this email/org pair,
+  // return it instead of duplicating. The UI can re-copy the link.
+  const pending = await prisma.invite.findFirst({
+    where: {
+      organizationId: params.organizationId,
+      email,
+      acceptedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+  });
+  if (pending) {
     return {
-      kind: "added",
-      userId: existingUser.id,
-      name: existingUser.name,
-      email: existingUser.email,
+      inviteId: pending.id,
+      token: pending.token,
+      email,
+      name: pending.name,
+      alreadyHasAccount: Boolean(existingUser),
     };
   }
 
@@ -189,11 +186,11 @@ export async function inviteToOrganization(params: {
   ).catch((e) => console.error("invite email failed", e));
 
   return {
-    kind: "invited",
     inviteId: invite.id,
     token: invite.token,
     email,
     name: params.name,
+    alreadyHasAccount: Boolean(existingUser),
   };
 }
 

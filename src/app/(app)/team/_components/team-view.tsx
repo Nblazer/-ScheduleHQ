@@ -69,6 +69,7 @@ export function TeamView({
     link: string;
     name: string;
     email: string;
+    alreadyHasAccount?: boolean;
   } | null>(null);
 
   return (
@@ -137,13 +138,12 @@ export function TeamView({
           assignable={assignableRoles}
           onClose={() => setInviteOpen(false)}
           onInviteCreated={(result) => {
-            if (result.outcome === "invited" && result.inviteLink) {
-              setShareDialog({
-                link: result.inviteLink,
-                name: result.name,
-                email: result.email,
-              });
-            }
+            setShareDialog({
+              link: result.inviteLink,
+              name: result.name,
+              email: result.email,
+              alreadyHasAccount: result.alreadyHasAccount,
+            });
           }}
         />
       )}
@@ -314,16 +314,10 @@ function InviteDialog({
   const [state, formAction] = useFormState(inviteAction, null);
   React.useEffect(() => {
     if (state?.ok) {
-      if (state.outcome === "added") {
-        toast.success(`${state.name} added to the team.`);
-        router.refresh();
-        onClose();
-      } else if (state.outcome === "invited") {
-        toast.success("Invitation created.");
-        router.refresh();
-        onInviteCreated(state);
-        onClose();
-      }
+      toast.success("Invitation sent.");
+      router.refresh();
+      onInviteCreated(state);
+      onClose();
     }
   }, [state, router, toast, onClose, onInviteCreated]);
 
@@ -331,7 +325,7 @@ function InviteDialog({
     <Dialog open onClose={onClose}>
       <DialogHeader
         title="Invite teammate"
-        description="If they already have a ScheduleHQ account, they'll be added right away. Otherwise they'll get a signup link."
+        description="They'll get an email with a link. Nothing happens until they accept — no auto-join."
       />
       <form action={formAction}>
         <DialogBody className="space-y-4">
@@ -370,11 +364,13 @@ function ShareInviteDialog({
   link,
   name,
   email,
+  alreadyHasAccount,
   onClose,
 }: {
   link: string;
   name: string;
   email: string;
+  alreadyHasAccount?: boolean;
   onClose: () => void;
 }) {
   const [copied, setCopied] = React.useState(false);
@@ -398,6 +394,16 @@ function ShareInviteDialog({
         description={`Share this with ${email} however you like — text, email, in person. It's valid for 7 days.`}
       />
       <DialogBody className="space-y-4">
+        {alreadyHasAccount ? (
+          <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm">
+            <div className="font-medium">They already have a ScheduleHQ account.</div>
+            <div className="text-muted-foreground mt-1">
+              When they click this link, they'll be asked to log in and click{" "}
+              <span className="font-medium">Accept</span>. The new workspace then appears
+              in their sidebar switcher. Nothing happens until they accept.
+            </div>
+          </div>
+        ) : null}
         <div className="rounded-lg border border-border bg-muted/40 p-3 font-mono text-xs break-all select-all">
           {link}
         </div>
