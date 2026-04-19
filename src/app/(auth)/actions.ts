@@ -78,8 +78,10 @@ export async function resendVerificationAction(): Promise<ActionResult> {
   try {
     await resendVerification(u.id);
     return { ok: true };
-  } catch {
-    return { ok: false, error: "Could not send verification email." };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error.";
+    console.error("[email] resendVerification failed:", message);
+    return { ok: false, error: `Email send failed: ${message}` };
   }
 }
 
