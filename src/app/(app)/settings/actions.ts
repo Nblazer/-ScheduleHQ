@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { destroySession, getSessionUser, hasRole } from "@/lib/session";
-import { themeSchema, nameSchema } from "@/lib/validation";
+import { themeSchema, nameSchema, logoDataUrlSchema } from "@/lib/validation";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 import { z } from "zod";
 
@@ -106,6 +106,55 @@ export async function saveOrgAction(
   await prisma.organization.update({
     where: { id: user.organizationId },
     data: { name: parsed.data },
+  });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+const MAX_LOGO_BYTES = 256 * 1024;
+
+// Accepts FormData with either:
+//   - "remove" = "1"   → clears the logo
+//   - "logo"   = <File> → new upload (validated, converted to data URL, stored)
+export async function saveLogoAction(
+  _: Result | null,
+  formData: FormData,
+): Promise<Result> {
+  const user = await getSessionUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+  if (!hasRole(user, "ADMIN")) return { ok: false, error: "Admins and owners only." };
+
+  if (formData.get("remove") === "1") {
+    await prisma.organization.update({
+      where: { id: user.organizationId },
+      data: { logoDataUrl: null },
+    });
+    revalidatePath("/", "layout");
+    return { ok: true };
+  }
+
+  const file = formData.get("logo");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Pick an image file." };
+  }
+  if (file.size > MAX_LOGO_BYTES) {
+    return { ok: false, error: "Image is too large — please use one under 256KB." };
+  }
+  const type = (file.type || "").toLowerCase();
+  const allowed = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "image/svg+xml"];
+  if (!allowed.includes(type)) {
+    return { ok: false, error: "Unsupported format. Use PNG, JPEG, GIF, WebP, or SVG." };
+  }
+
+  const buf = Buffer.from(await file.arrayBuffer());
+  const dataUrl = `data:${type};base64,${buf.toString("base64")}`;
+
+  const parsed = logoDataUrlSchema.safeParse(dataUrl);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid image." };
+
+  await prisma.organization.update({
+    where: { id: user.organizationId },
+    data: { logoDataUrl: parsed.data },
   });
   revalidatePath("/", "layout");
   return { ok: true };

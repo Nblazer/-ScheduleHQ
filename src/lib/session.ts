@@ -45,6 +45,7 @@ export type OrgOption = {
   organizationName: string;
   organizationSlug: string;
   role: Role;
+  logoDataUrl: string | null;
 };
 
 export type SessionUser = {
@@ -57,6 +58,7 @@ export type SessionUser = {
   organizationId: string;
   organizationName: string;
   organizationSlug: string;
+  organizationLogoDataUrl: string | null;
   // Theme: user-level preference wins over org default
   themePreset: string;
   themeAccent: string;
@@ -109,6 +111,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
     organizationId: active.organizationId,
     organizationName: active.organization.name,
     organizationSlug: active.organization.slug,
+    organizationLogoDataUrl: active.organization.logoDataUrl,
     themePreset: u.themePreset ?? active.organization.themePreset,
     themeAccent: u.themeAccent ?? active.organization.themeAccent,
     orgs: u.memberships.map((m) => ({
@@ -116,6 +119,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
       organizationName: m.organization.name,
       organizationSlug: m.organization.slug,
       role: m.role,
+      logoDataUrl: m.organization.logoDataUrl,
     })),
   };
 });

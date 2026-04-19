@@ -37,6 +37,9 @@ model Organization {
   // Theme overrides (optional org-wide default). Keys: preset, accent, radius.
   themePreset     String         @default("midnight")
   themeAccent     String         @default("indigo")
+  // Optional business logo as a base64 data URL ("data:image/png;base64,...").
+  // Capped at ~256KB at the application layer to keep the DB lean.
+  logoDataUrl     String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -154,11 +157,16 @@ model Shift {
   endsAt          DateTime
   position        String?
   notes           String?
+  // If set, this shift is one instance of a recurring series. All instances
+  // of the same recurrence share the same seriesId, which lets us scope
+  // deletes to "just this one", "this and future", or "entire series".
+  seriesId        String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
   @@index([organizationId, startsAt])
   @@index([employeeId, startsAt])
+  @@index([seriesId])
 }
 
 // A note attached to a calendar day (e.g. "milk machine cleaning day").
@@ -173,9 +181,12 @@ model DayNote {
   color           String       @default("blue")
   createdById     String
   createdBy       User         @relation(fields: [createdById], references: [id])
+  // Recurring series id — see Shift.seriesId for rationale.
+  seriesId        String?
   createdAt       DateTime     @default(now())
 
   @@index([organizationId, date])
+  @@index([seriesId])
 }
 
 model Announcement {

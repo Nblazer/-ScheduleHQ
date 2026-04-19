@@ -58,7 +58,7 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
       >
         <div className="h-16 px-3 flex items-center gap-2 border-b border-border">
           <div className="pl-2">
-            <LogoMark />
+            <LogoMark src={user.organizationLogoDataUrl} alt={user.organizationName} />
           </div>
           <div className="flex-1 min-w-0">
             <OrgSwitcher

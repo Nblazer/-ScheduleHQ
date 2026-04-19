@@ -32,6 +32,15 @@ export const acceptInviteSchema = z.object({
   password: passwordSchema,
 });
 
+// Recurrence rule: "weekly" on specific days of week, for N weeks.
+// daysOfWeek uses 0=Sun..6=Sat. weeks is inclusive of the first week.
+// Cap at 26 weeks (~6 months) so a runaway series can't explode the DB.
+export const recurrenceSchema = z.object({
+  frequency: z.enum(["NONE", "WEEKLY"]).default("NONE"),
+  daysOfWeek: z.array(z.number().int().min(0).max(6)).default([]),
+  weeks: z.number().int().min(1).max(26).default(1),
+});
+
 export const shiftSchema = z
   .object({
     employeeId: z.string().min(1),
@@ -39,6 +48,7 @@ export const shiftSchema = z
     endsAt: z.coerce.date(),
     position: z.string().trim().max(80).optional().nullable(),
     notes: z.string().trim().max(500).optional().nullable(),
+    recurrence: recurrenceSchema.optional(),
   })
   .refine((v) => v.endsAt > v.startsAt, { message: "Shift end must be after start.", path: ["endsAt"] });
 
@@ -47,7 +57,22 @@ export const dayNoteSchema = z.object({
   title: z.string().trim().min(1).max(120),
   body: z.string().trim().max(1000).optional().nullable(),
   color: z.enum(["blue", "amber", "emerald", "rose", "violet"]).default("blue"),
+  recurrence: recurrenceSchema.optional(),
 });
+
+// How much of a recurring series to delete when the user clicks trash.
+export const deleteScopeSchema = z.enum(["single", "future", "series"]);
+export type DeleteScope = z.infer<typeof deleteScopeSchema>;
+
+// Organization logo — data URL, capped at 256KB post-base64.
+const MAX_LOGO_BYTES = 256 * 1024;
+export const logoDataUrlSchema = z
+  .string()
+  .max(MAX_LOGO_BYTES * 2, "Logo is too large — please use an image under 256KB.")
+  .regex(
+    /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,/i,
+    "Unsupported image format. Use PNG, JPEG, GIF, WebP, or SVG.",
+  );
 
 export const announcementSchema = z.object({
   title: z.string().trim().min(1).max(120),

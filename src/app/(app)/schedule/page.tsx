@@ -80,6 +80,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: { w
           endsAt: s.endsAt.toISOString(),
           position: s.position,
           notes: s.notes,
+          seriesId: s.seriesId,
         }))}
         dayNotes={dayNotes.map((n) => ({
           id: n.id,
@@ -87,6 +88,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: { w
           title: n.title,
           body: n.body,
           color: n.color,
+          seriesId: n.seriesId,
         }))}
       />
 

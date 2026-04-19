@@ -5,6 +5,7 @@ import { ThemeCustomizer } from "./_components/theme-customizer";
 import { ProfileForm } from "./_components/profile-form";
 import { PasswordForm } from "./_components/password-form";
 import { OrgForm } from "./_components/org-form";
+import { LogoForm } from "./_components/logo-form";
 import { DeleteAccount } from "./_components/delete-account";
 import { getDeleteAccountBlockers } from "./actions";
 
@@ -16,7 +17,12 @@ export default async function SettingsPage() {
   const [org, deleteBlockers] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: user.organizationId },
-      select: { name: true, themePreset: true, themeAccent: true },
+      select: {
+        name: true,
+        themePreset: true,
+        themeAccent: true,
+        logoDataUrl: true,
+      },
     }),
     getDeleteAccountBlockers(),
   ]);
@@ -68,10 +74,14 @@ export default async function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Workspace</CardTitle>
-            <CardDescription>Your organization's display name.</CardDescription>
+            <CardDescription>Your organization's display name and logo.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-8">
             <OrgForm initialName={org?.name ?? ""} />
+            <div className="border-t border-border pt-6">
+              <div className="text-sm font-medium mb-3">Logo</div>
+              <LogoForm orgName={org?.name ?? ""} initialLogo={org?.logoDataUrl ?? null} />
+            </div>
           </CardContent>
         </Card>
       )}

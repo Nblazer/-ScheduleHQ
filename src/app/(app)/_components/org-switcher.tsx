@@ -1,10 +1,26 @@
 "use client";
 
 import * as React from "react";
-import { Building2, Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrgOption } from "@/lib/session";
 import { switchOrgAction } from "./org-actions";
+
+function OrgMark({ logo, name }: { logo: string | null; name: string }) {
+  if (logo) {
+    return (
+      <span className="h-7 w-7 rounded-md overflow-hidden bg-muted ring-1 ring-border flex items-center justify-center shrink-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={logo} alt={name} className="h-full w-full object-contain" />
+      </span>
+    );
+  }
+  return (
+    <span className="h-7 w-7 rounded-md bg-primary/15 text-primary flex items-center justify-center shrink-0 font-semibold text-sm">
+      {name.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
 
 export function OrgSwitcher({
   orgs,
@@ -49,9 +65,6 @@ export function OrgSwitcher({
           !solo && "hover:bg-muted",
         )}
       >
-        <span className="h-7 w-7 rounded-md bg-primary/15 text-primary flex items-center justify-center shrink-0">
-          <Building2 className="h-4 w-4" />
-        </span>
         <span className="min-w-0 flex-1">
           <span className="block font-semibold text-sm truncate">{currentOrgName}</span>
           <span className="block text-[11px] text-muted-foreground uppercase tracking-wider">
@@ -83,6 +96,7 @@ export function OrgSwitcher({
                   isCurrent && "bg-muted",
                 )}
               >
+                <OrgMark logo={o.logoDataUrl} name={o.organizationName} />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{o.organizationName}</div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wider">
