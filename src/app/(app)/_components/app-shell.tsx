@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
 import { LogoMark } from "@/components/logo";
 import { OrgSwitcher } from "./org-switcher";
-import { NotificationBell, type NotificationInvite } from "./notifications";
+import { NotificationBell, type NotificationInvite, type NotificationSwap } from "./notifications";
 
 type Item = {
   href: string;
@@ -43,10 +43,12 @@ const NAV: Item[] = [
 export function AppShell({
   user,
   notifications,
+  swaps,
   children,
 }: {
   user: SessionUser;
   notifications: NotificationInvite[];
+  swaps: NotificationSwap[];
   children: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -116,7 +118,7 @@ export function AppShell({
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex-1" />
-          <NotificationBell invites={notifications} />
+          <NotificationBell invites={notifications} swaps={swaps} />
           <div className="hidden sm:flex flex-col items-end">
             <div className="text-sm font-medium">{user.name}</div>
             <div className="text-xs text-muted-foreground">{user.email}</div>

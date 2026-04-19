@@ -64,6 +64,13 @@ export const dayNoteSchema = z.object({
 export const deleteScopeSchema = z.enum(["single", "future", "series"]);
 export type DeleteScope = z.infer<typeof deleteScopeSchema>;
 
+export const swapRequestSchema = z.object({
+  requesterShiftId: z.string().min(1),
+  targetUserId: z.string().min(1),
+  targetShiftId: z.string().optional().nullable(),
+  note: z.string().trim().max(500).optional().nullable(),
+});
+
 export const resourcePageSchema = z.object({
   title: z.string().trim().min(1, "Title required.").max(120),
   icon: z.string().trim().max(8).optional().nullable(),

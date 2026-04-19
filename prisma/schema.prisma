@@ -30,6 +30,13 @@ enum ReportPriority {
   URGENT
 }
 
+enum SwapStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
 model Organization {
   id              String         @id @default(cuid())
   name            String
@@ -51,6 +58,7 @@ model Organization {
   announcements   Announcement[]
   reports         Report[]
   resourcePages   ResourcePage[]
+  swapRequests    ShiftSwapRequest[]
 }
 
 model User {
@@ -84,6 +92,8 @@ model User {
   reportsSubmitted    Report[]       @relation("ReportSubmitter")
   reportsAssigned     Report[]       @relation("ReportAssignee")
   resourcePagesCreated ResourcePage[]
+  swapsRequested      ShiftSwapRequest[] @relation("SwapRequester")
+  swapsReceived       ShiftSwapRequest[] @relation("SwapTarget")
 
   @@index([organizationId])
 }
@@ -166,6 +176,9 @@ model Shift {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
+  swapRequestsForRequester ShiftSwapRequest[] @relation("SwapRequesterShift")
+  swapRequestsForTarget    ShiftSwapRequest[] @relation("SwapTargetShift")
+
   @@index([organizationId, startsAt])
   @@index([employeeId, startsAt])
   @@index([seriesId])
@@ -203,6 +216,36 @@ model Announcement {
   createdAt       DateTime     @default(now())
 
   @@index([organizationId, createdAt])
+}
+
+// A request from one employee to swap a shift (or give it away). Another
+// employee can accept or decline. On accept, we atomically transfer the
+// shift(s) between employees and mark the request ACCEPTED.
+model ShiftSwapRequest {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  requesterId        String
+  requester          User         @relation("SwapRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  requesterShiftId   String
+  requesterShift     Shift        @relation("SwapRequesterShift", fields: [requesterShiftId], references: [id], onDelete: Cascade)
+
+  targetUserId       String
+  targetUser         User         @relation("SwapTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  // If null, the requester is giving their shift away and just wants the
+  // target to take it on. If set, they want to swap for this specific shift.
+  targetShiftId      String?
+  targetShift        Shift?       @relation("SwapTargetShift", fields: [targetShiftId], references: [id], onDelete: SetNull)
+
+  note               String?
+  status             SwapStatus   @default(PENDING)
+  createdAt          DateTime     @default(now())
+  resolvedAt         DateTime?
+
+  @@index([organizationId, status])
+  @@index([targetUserId, status])
+  @@index([requesterId])
 }
 
 // A free-form content page (training videos, handbooks, recipes, links, etc.).

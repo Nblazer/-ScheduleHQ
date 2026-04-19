@@ -104,6 +104,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: { w
 
       <ScheduleWeek
         canManage={canManage}
+        currentUserId={user.id}
         weekStartISO={weekStart.toISOString()}
         employees={memberships.map((m) => ({ id: m.user.id, name: m.user.name, role: m.role }))}
         shifts={shifts.map((s) => ({

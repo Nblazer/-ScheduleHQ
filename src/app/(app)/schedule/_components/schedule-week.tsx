@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useFormState, useFormStatus } from "react-dom";
-import { Plus, Trash2, StickyNote, Repeat } from "lucide-react";
+import { Plus, Trash2, StickyNote, Repeat, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { Input, Label, FieldError, Select, Textarea } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import {
   deleteShiftAction,
   deleteDayNoteAction,
 } from "../actions";
+import { requestSwapAction } from "../swap-actions";
 import type { DeleteScope } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 
@@ -54,12 +55,14 @@ type DeleteTarget =
 
 export function ScheduleWeek({
   canManage,
+  currentUserId,
   weekStartISO,
   employees,
   shifts,
   dayNotes,
 }: {
   canManage: boolean;
+  currentUserId: string;
   weekStartISO: string;
   employees: Employee[];
   shifts: Shift[];
@@ -69,6 +72,7 @@ export function ScheduleWeek({
   const [shiftDialog, setShiftDialog] = React.useState<{ date: Date } | null>(null);
   const [noteDialog, setNoteDialog] = React.useState<{ date: Date } | null>(null);
   const [deleteDialog, setDeleteDialog] = React.useState<DeleteTarget | null>(null);
+  const [swapDialog, setSwapDialog] = React.useState<Shift | null>(null);
 
   const days = React.useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -164,7 +168,9 @@ export function ScheduleWeek({
                     key={s.id}
                     shift={s}
                     canManage={canManage}
+                    isMine={s.employeeId === currentUserId}
                     onRequestDelete={(target) => setDeleteDialog(target)}
+                    onRequestSwap={(shift) => setSwapDialog(shift)}
                   />
                 ))}
               </div>
@@ -184,6 +190,14 @@ export function ScheduleWeek({
       {deleteDialog && (
         <DeleteScopeDialog target={deleteDialog} onClose={() => setDeleteDialog(null)} />
       )}
+      {swapDialog && (
+        <SwapDialog
+          myShift={swapDialog}
+          teammates={employees.filter((e) => e.id !== currentUserId)}
+          allShifts={shifts}
+          onClose={() => setSwapDialog(null)}
+        />
+      )}
     </>
   );
 }
@@ -191,38 +205,62 @@ export function ScheduleWeek({
 function ShiftChip({
   shift,
   canManage,
+  isMine,
   onRequestDelete,
+  onRequestSwap,
 }: {
   shift: Shift;
   canManage: boolean;
+  isMine: boolean;
   onRequestDelete: (target: DeleteTarget) => void;
+  onRequestSwap: (shift: Shift) => void;
 }) {
   const start1 = new Date(shift.startsAt);
   const end1 = new Date(shift.endsAt);
+  const isFuture = start1.getTime() > Date.now();
 
   return (
-    <div className="group rounded-md bg-primary/15 border border-primary/30 text-primary px-2 py-1.5 text-[11px] relative">
+    <div
+      className={cn(
+        "group rounded-md border px-2 py-1.5 text-[11px] relative",
+        isMine
+          ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
+          : "bg-primary/15 border-primary/30 text-primary",
+      )}
+    >
       <div className="font-semibold flex items-center justify-between gap-2">
         <span className="truncate flex items-center gap-1">
           {shift.seriesId ? <Repeat className="h-3 w-3 opacity-70" /> : null}
-          {shift.employeeName}
+          {isMine ? "You" : shift.employeeName}
         </span>
-        {canManage && (
-          <button
-            onClick={() =>
-              onRequestDelete({
-                kind: "shift",
-                id: shift.id,
-                seriesId: shift.seriesId,
-                label: shift.employeeName,
-              })
-            }
-            className="opacity-0 group-hover:opacity-100 transition hover:text-rose-300"
-            aria-label="Delete shift"
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
-        )}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+          {isMine && isFuture && (
+            <button
+              onClick={() => onRequestSwap(shift)}
+              className="hover:brightness-125"
+              aria-label="Request swap"
+              title="Request swap / cover"
+            >
+              <ArrowLeftRight className="h-3 w-3" />
+            </button>
+          )}
+          {canManage && (
+            <button
+              onClick={() =>
+                onRequestDelete({
+                  kind: "shift",
+                  id: shift.id,
+                  seriesId: shift.seriesId,
+                  label: shift.employeeName,
+                })
+              }
+              className="hover:text-rose-300"
+              aria-label="Delete shift"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          )}
+        </div>
       </div>
       <div className="opacity-80">
         {fmtTime(start1)} – {fmtTime(end1)}
@@ -662,12 +700,197 @@ function RecurrenceFields({
   );
 }
 
-function SubmitButton({ label }: { label: string }) {
+function SubmitButton({ label, disabled }: { label: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" loading={pending}>
+    <Button type="submit" loading={pending} disabled={disabled}>
       {label}
     </Button>
+  );
+}
+
+function SwapDialog({
+  myShift,
+  teammates,
+  allShifts,
+  onClose,
+}: {
+  myShift: Shift;
+  teammates: Employee[];
+  allShifts: Shift[];
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const [state, formAction] = useFormState(requestSwapAction, null);
+  const [targetUserId, setTargetUserId] = React.useState<string>(teammates[0]?.id ?? "");
+  const [mode, setMode] = React.useState<"give" | "swap">("give");
+  const [targetShiftId, setTargetShiftId] = React.useState<string>("");
+
+  React.useEffect(() => {
+    if (state?.ok) {
+      toast.success("Swap request sent.");
+      router.refresh();
+      onClose();
+    }
+  }, [state, router, toast, onClose]);
+
+  const myStart = new Date(myShift.startsAt);
+  const myEnd = new Date(myShift.endsAt);
+
+  // Shifts the selected teammate owns, in this week view.
+  const theirShifts = allShifts.filter(
+    (s) => s.employeeId === targetUserId && new Date(s.startsAt).getTime() > Date.now(),
+  );
+
+  React.useEffect(() => {
+    // Reset target shift when teammate changes.
+    setTargetShiftId("");
+  }, [targetUserId]);
+
+  return (
+    <Dialog open onClose={onClose} size="lg">
+      <DialogHeader
+        title="Request swap / cover"
+        description="Your teammate gets a notification in the bell and can accept or decline."
+      />
+      <form action={formAction}>
+        <input type="hidden" name="requesterShiftId" value={myShift.id} />
+        <input type="hidden" name="targetUserId" value={targetUserId} />
+        {mode === "swap" && targetShiftId ? (
+          <input type="hidden" name="targetShiftId" value={targetShiftId} />
+        ) : null}
+        <DialogBody className="space-y-4">
+          <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-3 text-sm">
+            <div className="text-xs text-emerald-300/80 uppercase tracking-wider mb-1">
+              Your shift
+            </div>
+            <div className="font-medium">
+              {myStart.toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "short",
+                day: "numeric",
+              })}{" "}
+              · {fmtTime(myStart)} – {fmtTime(myEnd)}
+              {myShift.position ? ` · ${myShift.position}` : ""}
+            </div>
+          </div>
+
+          {teammates.length === 0 ? (
+            <p className="text-sm text-destructive">
+              There's nobody else in this workspace to swap with.
+            </p>
+          ) : (
+            <>
+              <div>
+                <Label htmlFor="swap-target">Ask</Label>
+                <Select
+                  id="swap-target"
+                  value={targetUserId}
+                  onChange={(e) => setTargetUserId(e.target.value)}
+                  required
+                >
+                  {teammates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.role.toLowerCase()})
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div>
+                <Label>What are you asking for?</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMode("give")}
+                    className={cn(
+                      "rounded-lg border p-3 text-left transition",
+                      mode === "give"
+                        ? "border-primary ring-2 ring-primary/40"
+                        : "border-border hover:border-primary/50",
+                    )}
+                  >
+                    <div className="font-medium text-sm">Cover for me</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      They take this shift, you take nothing in return.
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode("swap")}
+                    disabled={theirShifts.length === 0}
+                    className={cn(
+                      "rounded-lg border p-3 text-left transition disabled:opacity-40 disabled:pointer-events-none",
+                      mode === "swap"
+                        ? "border-primary ring-2 ring-primary/40"
+                        : "border-border hover:border-primary/50",
+                    )}
+                  >
+                    <div className="font-medium text-sm">Swap shifts</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {theirShifts.length === 0
+                        ? "They have no future shifts this week."
+                        : "Pick one of their shifts to trade for."}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {mode === "swap" && theirShifts.length > 0 && (
+                <div>
+                  <Label htmlFor="swap-their-shift">Their shift to trade for</Label>
+                  <Select
+                    id="swap-their-shift"
+                    value={targetShiftId}
+                    onChange={(e) => setTargetShiftId(e.target.value)}
+                    required
+                  >
+                    <option value="">Pick one…</option>
+                    {theirShifts.map((s) => {
+                      const st = new Date(s.startsAt);
+                      const en = new Date(s.endsAt);
+                      return (
+                        <option key={s.id} value={s.id}>
+                          {st.toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                          })}{" "}
+                          · {fmtTime(st)}–{fmtTime(en)}
+                          {s.position ? ` · ${s.position}` : ""}
+                        </option>
+                      );
+                    })}
+                  </Select>
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="swap-note">Note (optional)</Label>
+                <Textarea
+                  id="swap-note"
+                  name="note"
+                  rows={3}
+                  maxLength={500}
+                  placeholder="e.g. I have a doctor's appointment that morning — can you cover?"
+                />
+              </div>
+            </>
+          )}
+          {state && !state.ok ? <FieldError>{state.error}</FieldError> : null}
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <SubmitButton
+            label="Send request"
+            disabled={teammates.length === 0 || (mode === "swap" && !targetShiftId)}
+          />
+        </DialogFooter>
+      </form>
+    </Dialog>
   );
 }
 
