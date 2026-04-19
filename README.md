@@ -83,35 +83,42 @@ We recommend **Neon** (serverless Postgres, generous free tier):
 
 Alternatives: **Supabase**, **Railway**, **Aiven**, or self-hosted Postgres.
 
-## Set up email (Resend)
+## Set up email
 
-**Invite links work without email.** If Resend isn't configured, the Team page gives you a link to copy-paste — useful for texting/Slacking invites to teammates. Verification emails log to the server console in dev.
+**Invite links work without email.** Every invite shows a copy-paste link you can text/DM. Users also see pending invites in the in-app notification bell. Email is purely optional.
 
-When you're ready to send real email:
+When you want automatic email (shift assignments, announcements, verification), pick ONE of these:
 
-### Option A: Use Resend's shared sender (testing only)
+### Option A: Gmail SMTP (free, no domain needed — recommended)
 
-Fastest path. No DNS setup.
+Sends from your existing Gmail. Delivers to anyone. Zero cost.
 
-1. Go to https://resend.com → sign up → create an API key
-2. Vercel → **Settings → Environment Variables**:
+1. **Turn on 2-Step Verification** on the Gmail account you want to send from — https://myaccount.google.com/security (required for step 2 to appear)
+2. **Generate an app password** — https://myaccount.google.com/apppasswords → pick "Mail" → copy the 16-character password (no spaces)
+3. Vercel → **Settings → Environment Variables** → add:
+   - `GMAIL_USER` = your full Gmail address (e.g. `you@gmail.com`)
+   - `GMAIL_APP_PASSWORD` = the 16-char app password
+   - `EMAIL_FROM` = `ScheduleHQ <you@gmail.com>` (just the display name matters; Gmail rewrites the address)
+4. Redeploy
+
+**Limits:** ~500 recipients/day on a personal Gmail (2000/day on Workspace). Plenty for small-team use.
+
+**One caveat:** emails appear to come from your personal Gmail address. Professional teams usually prefer Option B for a branded `noreply@yourcompany.com`.
+
+### Option B: Resend with a verified domain
+
+Cleaner for brand identity. Requires owning a domain (~$10/yr on Cloudflare Registrar, Namecheap, or Vercel Domains).
+
+1. https://resend.com → sign up → create an API key
+2. Resend → **Domains → Add Domain** → paste the DNS records into your DNS provider → **Verify**
+3. Vercel → Environment Variables:
    - `RESEND_API_KEY` = your key
-   - `EMAIL_FROM` = `ScheduleHQ <onboarding@resend.dev>`
-3. Redeploy
+   - `EMAIL_FROM` = `ScheduleHQ <noreply@yourdomain.com>`
+4. Redeploy
 
-**Limitation:** `onboarding@resend.dev` can only deliver to the email address that owns the Resend account. Fine for testing yourself, but your teammates won't receive anything. You'll need Option B for real use.
+Resend free tier: 3,000 emails/month, 100/day.
 
-### Option B: Verify your own domain (for real use)
-
-1. Buy a domain if you don't have one (Namecheap, Cloudflare Registrar — ~$10/yr)
-2. Resend → **Domains → Add Domain**
-3. Copy the DNS records Resend gives you (usually 3-4: DKIM, SPF, optionally DMARC/MX)
-4. Paste those into your DNS provider. Wait ~5 min.
-5. Click **Verify** in Resend
-6. Set `EMAIL_FROM` = `ScheduleHQ <noreply@yourdomain.com>` (or any address at your verified domain)
-7. Redeploy
-
-Resend free tier: 3,000 emails/month, 100/day. Plenty for most small teams.
+**If both Gmail SMTP and Resend are configured, Gmail SMTP wins** (it's the free, no-DNS path).
 
 ## Deploy to Vercel (free)
 

@@ -1,28 +1,63 @@
 import { Resend } from "resend";
+import nodemailer, { type Transporter } from "nodemailer";
 
-const apiKey = process.env.RESEND_API_KEY;
+const resendKey = process.env.RESEND_API_KEY;
+const gmailUser = process.env.GMAIL_USER;
+const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
 const from = process.env.EMAIL_FROM ?? "ScheduleHQ <noreply@resend.dev>";
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-// Lazily instantiate so the build/dev works without a key.
-let client: Resend | null = null;
-function getClient() {
-  if (!apiKey) return null;
-  if (!client) client = new Resend(apiKey);
-  return client;
+// Preference order for sending:
+//   1. Gmail SMTP (free, works without a verified domain — just your Gmail + app password).
+//   2. Resend (cleaner templating, but requires a verified domain to send to anyone).
+//   3. Nothing configured — log to console instead so dev still works.
+let resendClient: Resend | null = null;
+let smtpTransporter: Transporter | null = null;
+
+function getSmtp(): Transporter | null {
+  if (!gmailUser || !gmailAppPassword) return null;
+  if (!smtpTransporter) {
+    smtpTransporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: gmailUser, pass: gmailAppPassword },
+    });
+  }
+  return smtpTransporter;
+}
+
+function getResend(): Resend | null {
+  if (!resendKey) return null;
+  if (!resendClient) resendClient = new Resend(resendKey);
+  return resendClient;
+}
+
+// Gmail rewrites the From header to the authenticated address no matter what
+// you pass, so we preserve the EMAIL_FROM display name but swap in the Gmail
+// address for the actual sender identity.
+function smtpFrom(): string {
+  const match = from.match(/^(.+?)\s*<(.+)>\s*$/);
+  const displayName = match?.[1]?.trim() ?? "ScheduleHQ";
+  return `"${displayName}" <${gmailUser}>`;
 }
 
 export async function sendEmail(to: string, subject: string, html: string) {
-  const c = getClient();
-  if (!c) {
-    console.warn(
-      `[email] RESEND_API_KEY not set — email to ${to} ("${subject}") was not sent.\n${stripTags(html).slice(0, 400)}`,
-    );
-    return { skipped: true as const };
+  const smtp = getSmtp();
+  if (smtp) {
+    const info = await smtp.sendMail({ from: smtpFrom(), to, subject, html });
+    return { id: info.messageId, skipped: false as const };
   }
-  const res = await c.emails.send({ from, to, subject, html });
-  if (res.error) throw new Error(res.error.message);
-  return { id: res.data?.id, skipped: false as const };
+
+  const resend = getResend();
+  if (resend) {
+    const res = await resend.emails.send({ from, to, subject, html });
+    if (res.error) throw new Error(res.error.message);
+    return { id: res.data?.id, skipped: false as const };
+  }
+
+  console.warn(
+    `[email] No email provider configured — message to ${to} ("${subject}") was not sent.\n${stripTags(html).slice(0, 400)}`,
+  );
+  return { skipped: true as const };
 }
 
 function stripTags(s: string) {
