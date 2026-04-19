@@ -185,22 +185,24 @@ body {
 /* ---------- Print styles ---------- */
 
 /*
- * When the user prints (or saves as PDF) the schedule page, we want:
- *   - No sidebar, no header, no nav
- *   - No interactive buttons (add/delete) — those don't belong on paper
- *   - White background, black text (ink-friendly + theme-neutral)
- *   - Landscape orientation by default (week grids read better wide)
- *   - Shift/day-note chips get visible borders instead of relying on color fills
+ * Goal: the whole week fits on ONE piece of paper (landscape letter).
+ * Strategy:
+ *   - Fixed page size + tight margins
+ *   - Strip sidebar/header/buttons
+ *   - Small, dense typography
+ *   - Compact chips with visible borders instead of color fills
+ *   - Day cells never break across pages
  */
 @media print {
-  @page { size: landscape; margin: 0.5in; }
+  @page { size: letter landscape; margin: 0.35in; }
 
   html, body {
     background: white !important;
     color: black !important;
+    font-size: 9pt !important;
   }
 
-  /* Strip chrome */
+  /* Strip interactive chrome */
   aside,
   header,
   nav,
@@ -213,9 +215,7 @@ body {
   /* Reveal print-only content (branded header) */
   .print-only { display: block !important; }
 
-  main {
-    padding: 0 !important;
-  }
+  main { padding: 0 !important; }
 
   /* Force theme colors to ink-friendly values */
   [class*="bg-card"],
@@ -224,14 +224,10 @@ body {
     background: white !important;
     color: black !important;
   }
-  [class*="border"] {
-    border-color: #aaa !important;
-  }
-  [class*="text-muted-foreground"] {
-    color: #555 !important;
-  }
+  [class*="border"] { border-color: #aaa !important; }
+  [class*="text-muted-foreground"] { color: #555 !important; }
 
-  /* Schedule chips: print as outlined boxes with dark text */
+  /* Schedule chips: outlined boxes, dark text, compact */
   .bg-primary\/15,
   [class*="bg-sky-500\/15"],
   [class*="bg-amber-500\/15"],
@@ -240,19 +236,44 @@ body {
   [class*="bg-violet-500\/15"] {
     background: white !important;
     color: black !important;
-    border: 1px solid #333 !important;
+    border: 1px solid #444 !important;
+    padding: 2px 4px !important;
+    font-size: 8pt !important;
+    line-height: 1.15 !important;
+    margin-bottom: 2px !important;
   }
 
-  /* Keep each day cell together on one page */
+  /* Compact the week grid so it fits one landscape page */
+  .schedule-week-grid {
+    display: grid !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    gap: 4px !important;
+    padding: 0 !important;
+    border: none !important;
+  }
   .schedule-day {
+    min-height: 0 !important;
+    max-height: 6.5in;
+    padding: 4px 5px !important;
+    gap: 3px !important;
     page-break-inside: avoid;
-    border: 1px solid #aaa !important;
+    border: 1px solid #888 !important;
+    border-radius: 4px !important;
   }
+  .schedule-day > div:first-child {
+    margin-bottom: 2px !important;
+  }
+  .schedule-day .text-\[11px\] { font-size: 7pt !important; }
+  .schedule-day .text-sm { font-size: 9pt !important; font-weight: 600 !important; }
 
-  /* Make hover-only controls stay hidden on paper */
-  .group button {
-    display: none !important;
-  }
+  /* Hide hover-only icons on paper */
+  .group button, .group > .opacity-0 { display: none !important; }
+
+  /* Hide the "No shifts" italic placeholder to save space */
+  .schedule-day .italic { display: none !important; }
 
   a { color: black !important; text-decoration: none !important; }
+
+  /* Branded print header */
+  .print-only img { max-height: 44px !important; }
 }

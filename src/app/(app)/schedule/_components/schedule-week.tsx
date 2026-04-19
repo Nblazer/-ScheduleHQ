@@ -99,7 +99,7 @@ export function ScheduleWeek({
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-2 rounded-xl border border-border bg-card p-2">
+      <div className="schedule-week-grid grid grid-cols-1 md:grid-cols-7 gap-2 rounded-xl border border-border bg-card p-2">
         {days.map((d) => {
           const k = dayKey(d);
           const todayKey = dayKey(new Date());
