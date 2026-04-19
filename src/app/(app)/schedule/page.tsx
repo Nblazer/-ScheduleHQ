@@ -2,9 +2,10 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getSessionUser, hasRole } from "@/lib/session";
 import { addDays, startOfWeek, toDayKey } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScheduleWeek } from "./_components/schedule-week";
+import { PrintButton } from "./_components/print-button";
 
 export const metadata = { title: "Schedule" };
 
@@ -18,6 +19,18 @@ export default async function SchedulePage({ searchParams }: { searchParams: { w
   const prevWeek = toDayKey(addDays(weekStart, -7));
   const nextWeek = toDayKey(addDays(weekStart, 7));
   const today = toDayKey(startOfWeek(new Date()));
+
+  const weekLabel = weekStart.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  const weekEndLabel = addDays(weekStart, 6).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 
   const [memberships, shifts, dayNotes] = await Promise.all([
     prisma.membership.findMany({
@@ -44,12 +57,31 @@ export default async function SchedulePage({ searchParams }: { searchParams: { w
 
   return (
     <div className="space-y-5">
+      {/* Print-only header — shows only on paper, carries the branding */}
+      <div className="hidden print:block mb-4">
+        <div className="flex items-center gap-3">
+          {user.organizationLogoDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.organizationLogoDataUrl}
+              alt={user.organizationName}
+              className="h-14 w-14 object-contain"
+            />
+          ) : null}
+          <div>
+            <div className="text-2xl font-bold">{user.organizationName}</div>
+            <div className="text-sm">
+              Schedule · Week of {weekLabel} – {weekEndLabel}
+            </div>
+          </div>
+        </div>
+        <div className="border-b border-black mt-3" />
+      </div>
+
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Schedule</h1>
-          <p className="text-sm text-muted-foreground">
-            Week of {weekStart.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}
-          </p>
+          <p className="text-sm text-muted-foreground">Week of {weekLabel}</p>
         </div>
         <div className="flex items-center gap-2">
           <Link href={`/schedule?week=${prevWeek}`}>
@@ -65,6 +97,8 @@ export default async function SchedulePage({ searchParams }: { searchParams: { w
               <ChevronRight className="h-4 w-4" />
             </Button>
           </Link>
+          <div className="w-px h-6 bg-border mx-1" />
+          <PrintButton />
         </div>
       </div>
 

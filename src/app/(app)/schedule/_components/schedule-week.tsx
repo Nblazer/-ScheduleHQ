@@ -110,7 +110,7 @@ export function ScheduleWeek({
             <div
               key={k}
               className={cn(
-                "min-h-[220px] rounded-lg border border-border/60 p-2.5 flex flex-col gap-1.5",
+                "schedule-day min-h-[220px] rounded-lg border border-border/60 p-2.5 flex flex-col gap-1.5",
                 isToday && "border-primary/60 bg-primary/5",
               )}
             >

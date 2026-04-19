@@ -181,3 +181,78 @@ body {
   border-radius: 8px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); }
+
+/* ---------- Print styles ---------- */
+
+/*
+ * When the user prints (or saves as PDF) the schedule page, we want:
+ *   - No sidebar, no header, no nav
+ *   - No interactive buttons (add/delete) — those don't belong on paper
+ *   - White background, black text (ink-friendly + theme-neutral)
+ *   - Landscape orientation by default (week grids read better wide)
+ *   - Shift/day-note chips get visible borders instead of relying on color fills
+ */
+@media print {
+  @page { size: landscape; margin: 0.5in; }
+
+  html, body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Strip chrome */
+  aside,
+  header,
+  nav,
+  button,
+  .no-print,
+  [role="dialog"] {
+    display: none !important;
+  }
+
+  /* Reveal print-only content (branded header) */
+  .print-only { display: block !important; }
+
+  main {
+    padding: 0 !important;
+  }
+
+  /* Force theme colors to ink-friendly values */
+  [class*="bg-card"],
+  [class*="bg-background"],
+  [class*="bg-muted"] {
+    background: white !important;
+    color: black !important;
+  }
+  [class*="border"] {
+    border-color: #aaa !important;
+  }
+  [class*="text-muted-foreground"] {
+    color: #555 !important;
+  }
+
+  /* Schedule chips: print as outlined boxes with dark text */
+  .bg-primary\/15,
+  [class*="bg-sky-500\/15"],
+  [class*="bg-amber-500\/15"],
+  [class*="bg-emerald-500\/15"],
+  [class*="bg-rose-500\/15"],
+  [class*="bg-violet-500\/15"] {
+    background: white !important;
+    color: black !important;
+    border: 1px solid #333 !important;
+  }
+
+  /* Keep each day cell together on one page */
+  .schedule-day {
+    page-break-inside: avoid;
+    border: 1px solid #aaa !important;
+  }
+
+  /* Make hover-only controls stay hidden on paper */
+  .group button {
+    display: none !important;
+  }
+
+  a { color: black !important; text-decoration: none !important; }
+}
