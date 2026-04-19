@@ -1,0 +1,183 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * ScheduleHQ theming.
+ * data-theme picks the neutral palette (background/card/foreground/muted/border).
+ * data-accent picks the primary brand color.
+ * Values are HSL triples so Tailwind `hsl(var(--...))` works.
+ */
+
+:root {
+  --font-sans: "Inter", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --radius: 0.75rem;
+}
+
+/* ---------- Presets ---------- */
+
+:root[data-theme="midnight"],
+:root:not([data-theme]) {
+  --background: 230 28% 6%;
+  --foreground: 210 40% 98%;
+  --card: 228 24% 10%;
+  --card-foreground: 210 40% 98%;
+  --muted: 228 18% 14%;
+  --muted-foreground: 220 12% 64%;
+  --border: 228 18% 16%;
+  --input: 228 18% 14%;
+  --secondary: 228 18% 14%;
+  --secondary-foreground: 210 40% 98%;
+  --accent-bg: 228 22% 16%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  color-scheme: dark;
+}
+
+:root[data-theme="daylight"] {
+  --background: 220 28% 97%;
+  --foreground: 230 28% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 230 28% 10%;
+  --muted: 220 20% 92%;
+  --muted-foreground: 220 10% 38%;
+  --border: 220 16% 86%;
+  --input: 220 16% 86%;
+  --secondary: 220 20% 92%;
+  --secondary-foreground: 230 28% 10%;
+  --accent-bg: 220 20% 92%;
+  --accent-foreground: 230 28% 10%;
+  --destructive: 0 72% 45%;
+  --destructive-foreground: 0 0% 100%;
+  color-scheme: light;
+}
+
+:root[data-theme="slate"] {
+  --background: 222 24% 10%;
+  --foreground: 210 30% 92%;
+  --card: 222 22% 14%;
+  --card-foreground: 210 30% 92%;
+  --muted: 222 18% 18%;
+  --muted-foreground: 215 15% 64%;
+  --border: 222 18% 20%;
+  --input: 222 18% 18%;
+  --secondary: 222 18% 18%;
+  --secondary-foreground: 210 30% 92%;
+  --accent-bg: 222 22% 20%;
+  --accent-foreground: 210 30% 92%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  color-scheme: dark;
+}
+
+:root[data-theme="mocha"] {
+  --background: 24 20% 9%;
+  --foreground: 36 40% 92%;
+  --card: 24 18% 13%;
+  --card-foreground: 36 40% 92%;
+  --muted: 24 14% 18%;
+  --muted-foreground: 30 12% 66%;
+  --border: 24 14% 20%;
+  --input: 24 14% 18%;
+  --secondary: 24 14% 18%;
+  --secondary-foreground: 36 40% 92%;
+  --accent-bg: 24 18% 20%;
+  --accent-foreground: 36 40% 92%;
+  --destructive: 0 72% 55%;
+  --destructive-foreground: 0 0% 100%;
+  color-scheme: dark;
+}
+
+/* ---------- Accents ---------- */
+
+:root[data-accent="indigo"], :root:not([data-accent]) {
+  --primary: 239 84% 67%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 239 84% 67%;
+  --accent: 243 90% 72%;
+}
+:root[data-accent="violet"] {
+  --primary: 262 83% 68%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 262 83% 68%;
+  --accent: 270 90% 74%;
+}
+:root[data-accent="emerald"] {
+  --primary: 160 74% 44%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 160 74% 44%;
+  --accent: 152 76% 50%;
+}
+:root[data-accent="amber"] {
+  --primary: 38 92% 52%;
+  --primary-foreground: 30 40% 12%;
+  --ring: 38 92% 52%;
+  --accent: 32 95% 60%;
+}
+:root[data-accent="rose"] {
+  --primary: 347 85% 61%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 347 85% 61%;
+  --accent: 340 88% 66%;
+}
+:root[data-accent="sky"] {
+  --primary: 199 90% 52%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 199 90% 52%;
+  --accent: 192 90% 58%;
+}
+
+/* ---------- Base ---------- */
+
+* { border-color: hsl(var(--border)); }
+
+html, body { height: 100%; }
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection { background: hsl(var(--primary) / 0.35); }
+
+/* ---------- Custom utilities ---------- */
+
+.bg-grid {
+  background-image:
+    linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.bg-radial-glow {
+  background: radial-gradient(
+    1200px 600px at 50% -10%,
+    hsl(var(--primary) / 0.25),
+    transparent 60%
+  );
+}
+
+.glass {
+  background: hsl(var(--card) / 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.text-gradient {
+  background: linear-gradient(120deg, hsl(var(--foreground)), hsl(var(--primary)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); }

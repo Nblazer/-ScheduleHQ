@@ -1,0 +1,187 @@
+// ScheduleHQ schema
+// Multi-tenant by Organization. Role hierarchy: OWNER > ADMIN > MANAGER > EMPLOYEE.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum ReportStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum ReportPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model Organization {
+  id              String         @id @default(cuid())
+  name            String
+  slug            String         @unique
+  // Theme overrides (optional org-wide default). Keys: preset, accent, radius.
+  themePreset     String         @default("midnight")
+  themeAccent     String         @default("indigo")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  users           User[]
+  invites         Invite[]
+  shifts          Shift[]
+  dayNotes        DayNote[]
+  announcements   Announcement[]
+  reports         Report[]
+}
+
+model User {
+  id                  String         @id @default(cuid())
+  email               String         @unique
+  name                String
+  passwordHash        String
+  role                Role           @default(EMPLOYEE)
+  active              Boolean        @default(true)
+  emailVerifiedAt     DateTime?
+  // Per-user theme override (falls back to org default if null)
+  themePreset         String?
+  themeAccent         String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  organizationId      String
+  organization        Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  sessions            Session[]
+  verifications       EmailVerification[]
+  shifts              Shift[]        @relation("ShiftEmployee")
+  shiftsCreated       Shift[]        @relation("ShiftCreator")
+  dayNotesCreated     DayNote[]
+  announcementsPosted Announcement[]
+  reportsSubmitted    Report[]       @relation("ReportSubmitter")
+  reportsAssigned     Report[]       @relation("ReportAssignee")
+
+  @@index([organizationId])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailVerification {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+}
+
+model Invite {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email           String
+  name            String
+  role            Role
+  token           String       @unique
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+model Shift {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employeeId      String
+  employee        User         @relation("ShiftEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  createdById     String
+  createdBy       User         @relation("ShiftCreator", fields: [createdById], references: [id])
+  startsAt        DateTime
+  endsAt          DateTime
+  position        String?
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId, startsAt])
+  @@index([employeeId, startsAt])
+}
+
+// A note attached to a calendar day (e.g. "milk machine cleaning day").
+model DayNote {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // Stored as UTC midnight of the target day (YYYY-MM-DD @ 00:00:00Z).
+  date            DateTime
+  title           String
+  body            String?
+  color           String       @default("blue")
+  createdById     String
+  createdBy       User         @relation(fields: [createdById], references: [id])
+  createdAt       DateTime     @default(now())
+
+  @@index([organizationId, date])
+}
+
+model Announcement {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title           String
+  body            String
+  pinned          Boolean      @default(false)
+  postedById      String
+  postedBy        User         @relation(fields: [postedById], references: [id])
+  createdAt       DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+}
+
+model Report {
+  id              String         @id @default(cuid())
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  submitterId     String
+  submitter       User           @relation("ReportSubmitter", fields: [submitterId], references: [id])
+  assigneeId      String?
+  assignee        User?          @relation("ReportAssignee", fields: [assigneeId], references: [id])
+  subject         String
+  body            String
+  priority        ReportPriority @default(NORMAL)
+  status          ReportStatus   @default(OPEN)
+  managerResponse String?
+  respondedAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([organizationId, status])
+  @@index([submitterId])
+}
