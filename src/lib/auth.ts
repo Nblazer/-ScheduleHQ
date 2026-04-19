@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 import { randomToken, slugify } from "./utils";
-import { sendEmail, verificationEmail, inviteEmail } from "./email";
+import { sendEmail, verificationEmail, inviteEmail, addedToOrgEmail } from "./email";
 import type { Role } from "@prisma/client";
 
 const VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24; // 24h
@@ -13,6 +13,11 @@ export async function hashPassword(password: string) {
 
 export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
+}
+
+export function inviteUrl(token: string) {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  return `${base}/invite?token=${token}`;
 }
 
 export async function createOrganizationAndOwner(params: {
@@ -36,17 +41,24 @@ export async function createOrganizationAndOwner(params: {
 
   const passwordHash = await hashPassword(password);
 
-  const { user, verificationToken } = await prisma.$transaction(async (tx) => {
+  const { user, organization, verificationToken } = await prisma.$transaction(async (tx) => {
     const org = await tx.organization.create({ data: { name: orgName, slug } });
     const user = await tx.user.create({
       data: {
         email: email.toLowerCase(),
         name,
         passwordHash,
+        // Legacy fields kept for schema compat; authoritative in Membership.
         role: "OWNER",
         organizationId: org.id,
       },
-      include: { organization: true },
+    });
+    await tx.membership.create({
+      data: {
+        userId: user.id,
+        organizationId: org.id,
+        role: "OWNER",
+      },
     });
     const token = randomToken(24);
     await tx.emailVerification.create({
@@ -56,7 +68,7 @@ export async function createOrganizationAndOwner(params: {
         expiresAt: new Date(Date.now() + VERIFICATION_TTL_MS),
       },
     });
-    return { user, verificationToken: token };
+    return { user, organization: org, verificationToken: token };
   });
 
   await sendEmail(
@@ -65,7 +77,7 @@ export async function createOrganizationAndOwner(params: {
     verificationEmail({ name: user.name, token: verificationToken }),
   ).catch((e) => console.error("verification email failed", e));
 
-  return user;
+  return { user, organization };
 }
 
 export async function consumeVerificationToken(token: string) {
@@ -85,7 +97,7 @@ export async function resendVerification(userId: string) {
   if (!user || user.emailVerifiedAt) return;
   const token = randomToken(24);
   await prisma.emailVerification.create({
-    data: { userId: user.id, token, expiresAt: new Date(Date.now() + VERIFICATION_TTL_MS) },
+    data: { userId: user.id, token, expiresAt: new Date(Date.now() + VERIFICATION_TTL_MS), },
   });
   await sendEmail(
     user.email,
@@ -94,17 +106,64 @@ export async function resendVerification(userId: string) {
   );
 }
 
-export async function createInvite(params: {
+export type InviteOutcome =
+  | { kind: "added"; userId: string; name: string; email: string }
+  | { kind: "invited"; inviteId: string; token: string; email: string; name: string };
+
+// Invite someone to an organization.
+// If the email belongs to an existing ScheduleHQ user, add them as a Membership directly.
+// Otherwise, create an Invite + email them a link to set a password and join.
+export async function inviteToOrganization(params: {
   organizationId: string;
   organizationName: string;
   inviterName: string;
   email: string;
   name: string;
   role: Role;
-}) {
+}): Promise<InviteOutcome> {
   const email = params.email.toLowerCase();
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) throw new Error("A user with that email already exists.");
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email },
+    include: { memberships: true },
+  });
+
+  if (existingUser) {
+    const already = existingUser.memberships.find(
+      (m) => m.organizationId === params.organizationId,
+    );
+    if (already) {
+      if (already.active) throw new Error("This user is already a member of this workspace.");
+      // Reactivate if they were deactivated here before.
+      await prisma.membership.update({
+        where: { id: already.id },
+        data: { active: true, role: params.role },
+      });
+    } else {
+      await prisma.membership.create({
+        data: {
+          userId: existingUser.id,
+          organizationId: params.organizationId,
+          role: params.role,
+        },
+      });
+    }
+    sendEmail(
+      existingUser.email,
+      `You've been added to ${params.organizationName} on ScheduleHQ`,
+      addedToOrgEmail({
+        name: existingUser.name,
+        inviterName: params.inviterName,
+        orgName: params.organizationName,
+      }),
+    ).catch((e) => console.error("added-to-org email failed", e));
+    return {
+      kind: "added",
+      userId: existingUser.id,
+      name: existingUser.name,
+      email: existingUser.email,
+    };
+  }
 
   const token = randomToken(24);
   const invite = await prisma.invite.create({
@@ -118,7 +177,7 @@ export async function createInvite(params: {
     },
   });
 
-  await sendEmail(
+  sendEmail(
     email,
     `You've been invited to ${params.organizationName} on ScheduleHQ`,
     inviteEmail({
@@ -129,7 +188,13 @@ export async function createInvite(params: {
     }),
   ).catch((e) => console.error("invite email failed", e));
 
-  return invite;
+  return {
+    kind: "invited",
+    inviteId: invite.id,
+    token: invite.token,
+    email,
+    name: params.name,
+  };
 }
 
 export async function acceptInvite(params: { token: string; password: string }) {
@@ -138,8 +203,29 @@ export async function acceptInvite(params: { token: string; password: string }) 
   if (invite.acceptedAt) throw new Error("This invite has already been used.");
   if (invite.expiresAt < new Date()) throw new Error("This invite has expired.");
 
-  const existing = await prisma.user.findUnique({ where: { email: invite.email } });
-  if (existing) throw new Error("An account with that email already exists.");
+  const existingUser = await prisma.user.findUnique({
+    where: { email: invite.email },
+    include: { memberships: true },
+  });
+
+  if (existingUser) {
+    // Someone created an account on ScheduleHQ between invite-send and invite-accept.
+    // Attach them to this org instead of blocking.
+    if (!existingUser.memberships.some((m) => m.organizationId === invite.organizationId)) {
+      await prisma.membership.create({
+        data: {
+          userId: existingUser.id,
+          organizationId: invite.organizationId,
+          role: invite.role,
+        },
+      });
+    }
+    await prisma.invite.update({
+      where: { id: invite.id },
+      data: { acceptedAt: new Date() },
+    });
+    return { user: existingUser, organizationId: invite.organizationId };
+  }
 
   const passwordHash = await hashPassword(params.password);
 
@@ -155,9 +241,16 @@ export async function acceptInvite(params: { token: string; password: string }) 
         emailVerifiedAt: new Date(),
       },
     });
+    await tx.membership.create({
+      data: {
+        userId: user.id,
+        organizationId: invite.organizationId,
+        role: invite.role,
+      },
+    });
     await tx.invite.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
     return user;
   });
 
-  return user;
+  return { user, organizationId: invite.organizationId };
 }

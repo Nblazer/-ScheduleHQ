@@ -9,18 +9,22 @@ export default async function TeamPage() {
   const user = (await getSessionUser())!;
   if (!hasRole(user, "MANAGER")) redirect("/dashboard");
 
-  const [members, invites] = await Promise.all([
-    prisma.user.findMany({
+  const resendConfigured = Boolean(process.env.RESEND_API_KEY);
+
+  const [memberships, invites] = await Promise.all([
+    prisma.membership.findMany({
       where: { organizationId: user.organizationId },
-      orderBy: [{ active: "desc" }, { role: "asc" }, { name: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        active: true,
-        emailVerifiedAt: true,
-        createdAt: true,
+      orderBy: [{ active: "desc" }, { role: "asc" }, { createdAt: "asc" }],
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            emailVerifiedAt: true,
+            createdAt: true,
+          },
+        },
       },
     }),
     prisma.invite.findMany({
@@ -35,7 +39,7 @@ export default async function TeamPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Team</h1>
           <p className="text-sm text-muted-foreground">
-            Invite people, change roles, and manage who can access your workspace.
+            Invite people, change roles, and manage who can access this workspace.
           </p>
         </div>
       </div>
@@ -44,20 +48,22 @@ export default async function TeamPage() {
         currentUserId={user.id}
         currentRole={user.role}
         assignableRoles={assignableRoles(user.role)}
-        members={members.map((m) => ({
-          id: m.id,
-          name: m.name,
-          email: m.email,
+        resendConfigured={resendConfigured}
+        members={memberships.map((m) => ({
+          id: m.user.id,
+          name: m.user.name,
+          email: m.user.email,
           role: m.role,
           active: m.active,
-          emailVerified: m.emailVerifiedAt !== null,
-          createdAt: m.createdAt.toISOString(),
+          emailVerified: m.user.emailVerifiedAt !== null,
+          createdAt: m.user.createdAt.toISOString(),
         }))}
         invites={invites.map((i) => ({
           id: i.id,
           email: i.email,
           name: i.name,
           role: i.role,
+          token: i.token,
           expiresAt: i.expiresAt.toISOString(),
         }))}
       />

@@ -4,7 +4,16 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useFormState, useFormStatus } from "react-dom";
 import type { Role } from "@prisma/client";
-import { Plus, UserMinus, UserPlus, UserX, Mail } from "lucide-react";
+import {
+  Plus,
+  UserMinus,
+  UserPlus,
+  UserX,
+  Mail,
+  Copy,
+  Check,
+  AlertTriangle,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +25,7 @@ import {
   changeRoleAction,
   setActiveAction,
   revokeInviteAction,
+  type InviteActionResult,
 } from "../actions";
 
 type Member = {
@@ -33,6 +43,7 @@ type Invite = {
   email: string;
   name: string;
   role: Role;
+  token: string;
   expiresAt: string;
 };
 
@@ -44,17 +55,39 @@ export function TeamView({
   assignableRoles,
   members,
   invites,
+  resendConfigured,
 }: {
   currentUserId: string;
   currentRole: Role;
   assignableRoles: Role[];
   members: Member[];
   invites: Invite[];
+  resendConfigured: boolean;
 }) {
   const [inviteOpen, setInviteOpen] = React.useState(false);
+  const [shareDialog, setShareDialog] = React.useState<{
+    link: string;
+    name: string;
+    email: string;
+  } | null>(null);
 
   return (
     <>
+      {!resendConfigured && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm flex items-start gap-3">
+          <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+          <div>
+            <div className="font-medium text-amber-200">Email isn't configured yet</div>
+            <div className="text-amber-200/80 mt-1">
+              Invites will still work — we'll show you a link to copy and share
+              (text, Slack, in person). To enable auto-email, set{" "}
+              <code className="bg-amber-500/20 px-1 rounded">RESEND_API_KEY</code>{" "}
+              and <code className="bg-amber-500/20 px-1 rounded">EMAIL_FROM</code> in Vercel.
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-end -mt-1">
         <Button onClick={() => setInviteOpen(true)}>
           <UserPlus className="h-4 w-4" /> Invite teammate
@@ -69,7 +102,13 @@ export function TeamView({
             </h2>
             <div className="divide-y divide-border">
               {invites.map((i) => (
-                <PendingInviteRow key={i.id} invite={i} />
+                <PendingInviteRow
+                  key={i.id}
+                  invite={i}
+                  onShare={(link) =>
+                    setShareDialog({ link, name: i.name, email: i.email })
+                  }
+                />
               ))}
             </div>
           </CardContent>
@@ -93,7 +132,27 @@ export function TeamView({
         </CardContent>
       </Card>
 
-      {inviteOpen && <InviteDialog assignable={assignableRoles} onClose={() => setInviteOpen(false)} />}
+      {inviteOpen && (
+        <InviteDialog
+          assignable={assignableRoles}
+          onClose={() => setInviteOpen(false)}
+          onInviteCreated={(result) => {
+            if (result.outcome === "invited" && result.inviteLink) {
+              setShareDialog({
+                link: result.inviteLink,
+                name: result.name,
+                email: result.email,
+              });
+            }
+          }}
+        />
+      )}
+      {shareDialog && (
+        <ShareInviteDialog
+          {...shareDialog}
+          onClose={() => setShareDialog(null)}
+        />
+      )}
     </>
   );
 }
@@ -173,7 +232,7 @@ function MemberRow({
               start(async () => {
                 const r = await setActiveAction(member.id, !member.active);
                 if (r.ok) {
-                  toast.success(member.active ? "User deactivated." : "User reactivated.");
+                  toast.success(member.active ? "Member deactivated." : "Member reactivated.");
                   router.refresh();
                 } else toast.error(r.error);
               })
@@ -195,10 +254,18 @@ function MemberRow({
   );
 }
 
-function PendingInviteRow({ invite }: { invite: Invite }) {
+function PendingInviteRow({
+  invite,
+  onShare,
+}: {
+  invite: Invite;
+  onShare: (link: string) => void;
+}) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = React.useTransition();
+  const link = `${window.location.origin}/invite?token=${invite.token}`;
+
   return (
     <div className="py-3 flex items-center justify-between gap-3">
       <div className="min-w-0">
@@ -208,41 +275,64 @@ function PendingInviteRow({ invite }: { invite: Invite }) {
           {new Date(invite.expiresAt).toLocaleDateString()}
         </div>
       </div>
-      <Button
-        size="sm"
-        variant="outline"
-        loading={pending}
-        onClick={() =>
-          start(async () => {
-            const r = await revokeInviteAction(invite.id);
-            if (r.ok) {
-              toast.success("Invite revoked.");
-              router.refresh();
-            } else toast.error(r.error);
-          })
-        }
-      >
-        <UserX className="h-3.5 w-3.5" /> Revoke
-      </Button>
+      <div className="flex items-center gap-1">
+        <Button size="sm" variant="outline" onClick={() => onShare(link)}>
+          <Copy className="h-3.5 w-3.5" /> Copy link
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          loading={pending}
+          onClick={() =>
+            start(async () => {
+              const r = await revokeInviteAction(invite.id);
+              if (r.ok) {
+                toast.success("Invite revoked.");
+                router.refresh();
+              } else toast.error(r.error);
+            })
+          }
+        >
+          <UserX className="h-3.5 w-3.5" /> Revoke
+        </Button>
+      </div>
     </div>
   );
 }
 
-function InviteDialog({ assignable, onClose }: { assignable: Role[]; onClose: () => void }) {
+function InviteDialog({
+  assignable,
+  onClose,
+  onInviteCreated,
+}: {
+  assignable: Role[];
+  onClose: () => void;
+  onInviteCreated: (r: InviteActionResult & { ok: true }) => void;
+}) {
   const router = useRouter();
   const toast = useToast();
   const [state, formAction] = useFormState(inviteAction, null);
   React.useEffect(() => {
     if (state?.ok) {
-      toast.success("Invitation sent.");
-      router.refresh();
-      onClose();
+      if (state.outcome === "added") {
+        toast.success(`${state.name} added to the team.`);
+        router.refresh();
+        onClose();
+      } else if (state.outcome === "invited") {
+        toast.success("Invitation created.");
+        router.refresh();
+        onInviteCreated(state);
+        onClose();
+      }
     }
-  }, [state, router, toast, onClose]);
+  }, [state, router, toast, onClose, onInviteCreated]);
 
   return (
     <Dialog open onClose={onClose}>
-      <DialogHeader title="Invite teammate" description="They'll get an email to accept and set a password." />
+      <DialogHeader
+        title="Invite teammate"
+        description="If they already have a ScheduleHQ account, they'll be added right away. Otherwise they'll get a signup link."
+      />
       <form action={formAction}>
         <DialogBody className="space-y-4">
           <div>
@@ -276,11 +366,60 @@ function InviteDialog({ assignable, onClose }: { assignable: Role[]; onClose: ()
   );
 }
 
+function ShareInviteDialog({
+  link,
+  name,
+  email,
+  onClose,
+}: {
+  link: string;
+  name: string;
+  email: string;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = React.useState(false);
+  const toast = useToast();
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      toast.success("Link copied.");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't copy — long-press to copy manually.");
+    }
+  };
+
+  return (
+    <Dialog open onClose={onClose} size="lg">
+      <DialogHeader
+        title={`Invite link for ${name}`}
+        description={`Share this with ${email} however you like — text, email, in person. It's valid for 7 days.`}
+      />
+      <DialogBody className="space-y-4">
+        <div className="rounded-lg border border-border bg-muted/40 p-3 font-mono text-xs break-all select-all">
+          {link}
+        </div>
+        <Button onClick={copy} className="w-full">
+          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          {copied ? "Copied!" : "Copy link"}
+        </Button>
+      </DialogBody>
+      <DialogFooter>
+        <Button variant="ghost" onClick={onClose}>
+          Done
+        </Button>
+      </DialogFooter>
+    </Dialog>
+  );
+}
+
 function Submit() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" loading={pending}>
-      Send invitation
+      Send invite
     </Button>
   );
 }

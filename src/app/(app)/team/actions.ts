@@ -3,13 +3,23 @@
 import { revalidatePath } from "next/cache";
 import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { createInvite } from "@/lib/auth";
+import { inviteToOrganization, inviteUrl } from "@/lib/auth";
 import { assignableRoles, canManage, getSessionUser, hasRole } from "@/lib/session";
 import { inviteSchema } from "@/lib/validation";
 
-type Result = { ok: true } | { ok: false; error: string };
+type Result<T = {}> = ({ ok: true } & T) | { ok: false; error: string };
 
-export async function inviteAction(_: Result | null, formData: FormData): Promise<Result> {
+export type InviteActionResult = Result<{
+  outcome: "added" | "invited";
+  email: string;
+  name: string;
+  inviteLink?: string;
+}>;
+
+export async function inviteAction(
+  _: InviteActionResult | null,
+  formData: FormData,
+): Promise<InviteActionResult> {
   const user = await getSessionUser();
   if (!user) return { ok: false, error: "Not signed in." };
   if (!hasRole(user, "MANAGER")) return { ok: false, error: "Managers+ only." };
@@ -26,7 +36,7 @@ export async function inviteAction(_: Result | null, formData: FormData): Promis
   }
 
   try {
-    await createInvite({
+    const outcome = await inviteToOrganization({
       organizationId: user.organizationId,
       organizationName: user.organizationName,
       inviterName: user.name,
@@ -34,54 +44,86 @@ export async function inviteAction(_: Result | null, formData: FormData): Promis
       name: parsed.data.name,
       role: parsed.data.role,
     });
+    revalidatePath("/team");
+    if (outcome.kind === "added") {
+      return {
+        ok: true,
+        outcome: "added",
+        email: outcome.email,
+        name: outcome.name,
+      };
+    }
+    return {
+      ok: true,
+      outcome: "invited",
+      email: outcome.email,
+      name: outcome.name,
+      inviteLink: inviteUrl(outcome.token),
+    };
   } catch (err: unknown) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not send invite." };
   }
-
-  revalidatePath("/team");
-  return { ok: true };
 }
 
-export async function changeRoleAction(targetId: string, nextRole: Role): Promise<Result> {
+export async function changeRoleAction(
+  targetId: string,
+  nextRole: Role,
+): Promise<Result> {
   const actor = await getSessionUser();
   if (!actor) return { ok: false, error: "Not signed in." };
 
-  const target = await prisma.user.findFirst({
-    where: { id: targetId, organizationId: actor.organizationId },
+  const membership = await prisma.membership.findUnique({
+    where: {
+      userId_organizationId: { userId: targetId, organizationId: actor.organizationId },
+    },
   });
-  if (!target) return { ok: false, error: "User not found in your organization." };
-  if (target.id === actor.id) return { ok: false, error: "Use the settings page to change your own role." };
+  if (!membership) return { ok: false, error: "User not found in your organization." };
+  if (targetId === actor.id) return { ok: false, error: "Use the settings page to change your own role." };
 
-  if (!canManage(actor.role, target.role)) {
+  if (!canManage(actor.role, membership.role)) {
     return { ok: false, error: "You can't manage someone at or above your role." };
   }
   if (!assignableRoles(actor.role).includes(nextRole)) {
     return { ok: false, error: "You can't assign that role." };
   }
 
-  await prisma.user.update({ where: { id: targetId }, data: { role: nextRole } });
+  await prisma.membership.update({
+    where: { id: membership.id },
+    data: { role: nextRole },
+  });
   revalidatePath("/team");
   return { ok: true };
 }
 
-export async function setActiveAction(targetId: string, active: boolean): Promise<Result> {
+export async function setActiveAction(
+  targetId: string,
+  active: boolean,
+): Promise<Result> {
   const actor = await getSessionUser();
   if (!actor) return { ok: false, error: "Not signed in." };
   if (!hasRole(actor, "MANAGER")) return { ok: false, error: "Managers+ only." };
 
-  const target = await prisma.user.findFirst({
-    where: { id: targetId, organizationId: actor.organizationId },
+  const membership = await prisma.membership.findUnique({
+    where: {
+      userId_organizationId: { userId: targetId, organizationId: actor.organizationId },
+    },
   });
-  if (!target) return { ok: false, error: "User not found." };
-  if (target.id === actor.id) return { ok: false, error: "You can't deactivate yourself." };
-  if (!canManage(actor.role, target.role)) {
+  if (!membership) return { ok: false, error: "User not found." };
+  if (targetId === actor.id) return { ok: false, error: "You can't deactivate yourself." };
+  if (!canManage(actor.role, membership.role)) {
     return { ok: false, error: "You can't manage someone at or above your role." };
   }
 
-  await prisma.user.update({ where: { id: targetId }, data: { active } });
+  await prisma.membership.update({
+    where: { id: membership.id },
+    data: { active },
+  });
   if (!active) {
-    // Kill any live sessions for the deactivated user.
-    await prisma.session.deleteMany({ where: { userId: targetId } });
+    // If the deactivated user's active org was this one, nudge them to another.
+    await prisma.session.updateMany({
+      where: { userId: targetId, activeOrganizationId: actor.organizationId },
+      data: { activeOrganizationId: null },
+    });
   }
   revalidatePath("/team");
   return { ok: true };

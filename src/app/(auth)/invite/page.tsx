@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { XCircle } from "lucide-react";
 import { AcceptInviteForm } from "./accept-form";
+import { AcceptInviteForExistingUser } from "./accept-existing";
 
 export const metadata = { title: "Accept invite" };
 
@@ -16,6 +18,30 @@ export default async function InvitePage({ searchParams }: { searchParams: { tok
   if (invite.acceptedAt) return <Invalid message="This invite has already been used." />;
   if (invite.expiresAt < new Date()) return <Invalid message="This invite has expired. Ask your manager to re-send it." />;
 
+  const existingUser = await prisma.user.findUnique({
+    where: { email: invite.email },
+  });
+
+  // User already has a ScheduleHQ account — just join the new org.
+  if (existingUser) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold">Join {invite.organization.name}</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          You already have a ScheduleHQ account. Accept to add this workspace to your sidebar.
+        </p>
+        <div className="mt-4 rounded-lg border border-border bg-muted/50 p-3 text-sm">
+          <div className="text-muted-foreground">Joining as</div>
+          <div className="font-medium">{existingUser.name}</div>
+          <div className="text-muted-foreground text-xs mt-0.5">{invite.email}</div>
+          <div className="text-muted-foreground text-xs mt-0.5">Role: {invite.role.toLowerCase()}</div>
+        </div>
+        <AcceptInviteForExistingUser token={invite.token} />
+      </div>
+    );
+  }
+
+  // New user — create account with a password.
   return (
     <div>
       <h1 className="text-2xl font-bold">Join {invite.organization.name}</h1>
@@ -41,6 +67,9 @@ function Invalid({ message }: { message: string }) {
       </div>
       <h1 className="text-2xl font-bold">Invite unavailable</h1>
       <p className="text-muted-foreground mt-2">{message}</p>
+      <Link href="/" className="text-sm text-primary hover:underline mt-4 inline-block">
+        Back to home
+      </Link>
     </div>
   );
 }

@@ -41,6 +41,7 @@ model Organization {
   updatedAt       DateTime       @updatedAt
 
   users           User[]
+  memberships     Membership[]
   invites         Invite[]
   shifts          Shift[]
   dayNotes        DayNote[]
@@ -53,6 +54,8 @@ model User {
   email               String         @unique
   name                String
   passwordHash        String
+  // DEPRECATED — kept for migration safety. Authoritative data is in Membership.
+  // New code reads membership.role / membership.active instead.
   role                Role           @default(EMPLOYEE)
   active              Boolean        @default(true)
   emailVerifiedAt     DateTime?
@@ -62,9 +65,12 @@ model User {
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
+  // DEPRECATED — kept for migration safety so `prisma db push` doesn't drop data.
+  // Authoritative org assignments live in Membership.
   organizationId      String
   organization        Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  memberships         Membership[]
   sessions            Session[]
   verifications       EmailVerification[]
   shifts              Shift[]        @relation("ShiftEmployee")
@@ -77,13 +83,34 @@ model User {
   @@index([organizationId])
 }
 
+// A user's membership in one organization. Users can be in many orgs.
+// Role and active status are per-membership — being Manager at Dunkin
+// doesn't make you Manager at the pizza shop.
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           Role
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
 model Session {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token      String   @unique
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+  id                   String   @id @default(cuid())
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token                String   @unique
+  expiresAt            DateTime
+  // Which org this session is currently viewing. Switchable at runtime.
+  // Nullable so pre-existing sessions from before multi-org migration still work.
+  activeOrganizationId String?
+  createdAt            DateTime @default(now())
 
   @@index([userId])
   @@index([expiresAt])

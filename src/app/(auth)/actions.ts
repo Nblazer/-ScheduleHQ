@@ -25,8 +25,8 @@ export async function signupAction(_: ActionResult | null, formData: FormData): 
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
   try {
-    const user = await createOrganizationAndOwner(parsed.data);
-    await createSession(user.id);
+    const { user, organization } = await createOrganizationAndOwner(parsed.data);
+    await createSession(user.id, organization.id);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Could not create account.";
     return { ok: false, error: message };
@@ -42,12 +42,24 @@ export async function loginAction(_: ActionResult | null, formData: FormData): P
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+  const user = await prisma.user.findUnique({
+    where: { email: parsed.data.email },
+    include: {
+      memberships: {
+        where: { active: true },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
+    },
+  });
   if (!user || !user.active) return { ok: false, error: "Invalid email or password." };
   const ok = await verifyPassword(parsed.data.password, user.passwordHash);
   if (!ok) return { ok: false, error: "Invalid email or password." };
+  if (user.memberships.length === 0) {
+    return { ok: false, error: "Your account isn't part of a workspace. Contact your manager." };
+  }
 
-  await createSession(user.id);
+  await createSession(user.id, user.memberships[0].organizationId);
   redirect("/dashboard");
 }
 
@@ -83,8 +95,8 @@ export async function acceptInviteAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
   try {
-    const user = await acceptInvite(parsed.data);
-    await createSession(user.id);
+    const { user, organizationId } = await acceptInvite(parsed.data);
+    await createSession(user.id, organizationId);
   } catch (err: unknown) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not accept invite." };
   }

@@ -46,7 +46,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
         ...(user.role === "EMPLOYEE" ? { submitterId: user.id } : {}),
       },
     }),
-    prisma.user.count({ where: { organizationId: user.organizationId, active: true } }),
+    prisma.membership.count({ where: { organizationId: user.organizationId, active: true } }),
   ]);
 
   return (

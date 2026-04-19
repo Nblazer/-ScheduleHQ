@@ -23,10 +23,19 @@ export async function createShiftAction(_: Result | null, formData: FormData): P
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
 
-  const employee = await prisma.user.findFirst({
-    where: { id: parsed.data.employeeId, organizationId: user.organizationId },
+  const membership = await prisma.membership.findUnique({
+    where: {
+      userId_organizationId: {
+        userId: parsed.data.employeeId,
+        organizationId: user.organizationId,
+      },
+    },
+    include: { user: true },
   });
-  if (!employee) return { ok: false, error: "Employee not found in your organization." };
+  if (!membership || !membership.active) {
+    return { ok: false, error: "Employee not found in your organization." };
+  }
+  const employee = membership.user;
 
   await prisma.shift.create({
     data: {

@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
 import { LogoMark } from "@/components/logo";
+import { OrgSwitcher } from "./org-switcher";
 
 type Item = {
   href: string;
@@ -55,13 +56,17 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
           open ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         )}
       >
-        <div className="h-16 px-5 flex items-center gap-2 border-b border-border">
-          <LogoMark />
-          <div className="min-w-0">
-            <div className="font-semibold text-sm truncate">{user.organizationName}</div>
-            <div className="text-[11px] text-muted-foreground uppercase tracking-wider">
-              {user.role.toLowerCase()}
-            </div>
+        <div className="h-16 px-3 flex items-center gap-2 border-b border-border">
+          <div className="pl-2">
+            <LogoMark />
+          </div>
+          <div className="flex-1 min-w-0">
+            <OrgSwitcher
+              orgs={user.orgs}
+              currentOrgId={user.organizationId}
+              currentOrgName={user.organizationName}
+              currentRole={user.role}
+            />
           </div>
         </div>
         <nav className="p-3 space-y-1">

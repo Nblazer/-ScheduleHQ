@@ -5,16 +5,21 @@ import { ThemeCustomizer } from "./_components/theme-customizer";
 import { ProfileForm } from "./_components/profile-form";
 import { PasswordForm } from "./_components/password-form";
 import { OrgForm } from "./_components/org-form";
+import { DeleteAccount } from "./_components/delete-account";
+import { getDeleteAccountBlockers } from "./actions";
 
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   const user = (await getSessionUser())!;
   const isAdmin = hasRole(user, "ADMIN");
-  const org = await prisma.organization.findUnique({
-    where: { id: user.organizationId },
-    select: { name: true, themePreset: true, themeAccent: true },
-  });
+  const [org, deleteBlockers] = await Promise.all([
+    prisma.organization.findUnique({
+      where: { id: user.organizationId },
+      select: { name: true, themePreset: true, themeAccent: true },
+    }),
+    getDeleteAccountBlockers(),
+  ]);
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -70,6 +75,16 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="border-destructive/40">
+        <CardHeader>
+          <CardTitle className="text-destructive">Danger zone</CardTitle>
+          <CardDescription>Destructive actions. No going back.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DeleteAccount blockers={deleteBlockers} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

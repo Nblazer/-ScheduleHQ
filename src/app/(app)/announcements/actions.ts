@@ -36,17 +36,21 @@ export async function createAnnouncementAction(
   });
 
   if (emailBlast) {
-    const recipients = await prisma.user.findMany({
-      where: { organizationId: user.organizationId, active: true, id: { not: user.id } },
-      select: { email: true, name: true },
+    const memberships = await prisma.membership.findMany({
+      where: {
+        organizationId: user.organizationId,
+        active: true,
+        userId: { not: user.id },
+      },
+      include: { user: { select: { email: true, name: true } } },
     });
     await Promise.all(
-      recipients.map((r) =>
+      memberships.map((m) =>
         sendEmail(
-          r.email,
+          m.user.email,
           `[${user.organizationName}] ${parsed.data.title}`,
           announcementEmail({
-            name: r.name,
+            name: m.user.name,
             orgName: user.organizationName,
             title: parsed.data.title,
             body: parsed.data.body,

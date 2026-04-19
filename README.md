@@ -4,15 +4,32 @@ Free, professional shift scheduling for teams. Built with Next.js, Prisma, and T
 
 ## What's inside
 
-- **Multi-tenant workspaces** — one owner per org, invite teammates by email
+- **Multi-workspace memberships** — any user can belong to many organizations, with different roles in each
 - **Role hierarchy** — Owner → Admin → Manager → Employee, with proper gating
 - **Schedule** — week view, shift assignment, per-day notes ("milk machine cleaning day", "inspection day")
 - **Announcements** — company-wide posts, pin to top, optional email blast
 - **Reports** — employees file issues, managers triage and respond
-- **Team management** — invite, promote, demote, deactivate
+- **Team management** — invite by email or add existing ScheduleHQ users directly; copy-paste invite links for when email isn't set up
 - **Theme customization** — 4 presets × 6 accents, per-user or workspace default
 - **Email verification** — every new account confirmed via emailed link
+- **Account deletion** — users can permanently delete themselves (blocked if you're the sole Owner of a workspace; authored records are reassigned to the remaining Owner)
 - **Session auth** — HTTP-only cookies, bcrypt-hashed passwords, secure-flag in prod
+
+## Upgrading an existing deployment
+
+If you already have ScheduleHQ deployed from before the multi-workspace change, pull the new code, then run once:
+
+```bash
+# Apply schema changes (adds Membership table, Session.activeOrganizationId).
+# Non-destructive — no data loss.
+DATABASE_URL="<your prod Neon URL>" npx prisma db push
+
+# Backfill: create a Membership for every existing user, copied from their
+# previous single-org assignment. Safe to run more than once.
+DATABASE_URL="<your prod Neon URL>" node scripts/backfill-memberships.mjs
+```
+
+Then redeploy on Vercel (git push triggers auto-deploy). Your existing accounts and data are preserved.
 
 ## Getting started locally
 
@@ -35,7 +52,7 @@ Copy `.env.example` to `.env` and fill in the values:
 ```
 DATABASE_URL=postgresql://...
 SESSION_SECRET=<random 32+ bytes>
-RESEND_API_KEY=re_xxx       # optional in dev — emails are logged to the console if missing
+RESEND_API_KEY=re_xxx       # optional in dev — emails log to console if missing
 EMAIL_FROM="ScheduleHQ <noreply@yourdomain.com>"
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
@@ -60,52 +77,69 @@ We recommend **Neon** (serverless Postgres, generous free tier):
 
 1. Go to https://neon.tech → sign up
 2. Create a new project → name it `schedulehq`
-3. Copy the **connection string** (make sure it ends with `?sslmode=require`)
+3. Copy the **connection string** (it should end with `?sslmode=require`)
 4. Paste it into `.env` as `DATABASE_URL`
 5. Run `npx prisma db push` to create the tables
 
-Alternatives: **Supabase**, **Railway**, **Aiven**, or a self-hosted Postgres. Any standard Postgres works.
+Alternatives: **Supabase**, **Railway**, **Aiven**, or self-hosted Postgres.
 
-## Set up email (free)
+## Set up email (Resend)
 
-1. Go to https://resend.com → sign up
-2. **API Keys** → create a key → copy into `.env` as `RESEND_API_KEY`
-3. **Domains** → add your domain and verify DNS (recommended), **or** skip this and use `onboarding@resend.dev` in `EMAIL_FROM` for early testing
-4. Resend's free tier gives you 3,000 emails/month — plenty for early customers
+**Invite links work without email.** If Resend isn't configured, the Team page gives you a link to copy-paste — useful for texting/Slacking invites to teammates. Verification emails log to the server console in dev.
 
-> If you run without `RESEND_API_KEY`, the app still works — outbound email is just logged to the server console. Useful for local development.
+When you're ready to send real email:
+
+### Option A: Use Resend's shared sender (testing only)
+
+Fastest path. No DNS setup.
+
+1. Go to https://resend.com → sign up → create an API key
+2. Vercel → **Settings → Environment Variables**:
+   - `RESEND_API_KEY` = your key
+   - `EMAIL_FROM` = `ScheduleHQ <onboarding@resend.dev>`
+3. Redeploy
+
+**Limitation:** `onboarding@resend.dev` can only deliver to the email address that owns the Resend account. Fine for testing yourself, but your teammates won't receive anything. You'll need Option B for real use.
+
+### Option B: Verify your own domain (for real use)
+
+1. Buy a domain if you don't have one (Namecheap, Cloudflare Registrar — ~$10/yr)
+2. Resend → **Domains → Add Domain**
+3. Copy the DNS records Resend gives you (usually 3-4: DKIM, SPF, optionally DMARC/MX)
+4. Paste those into your DNS provider. Wait ~5 min.
+5. Click **Verify** in Resend
+6. Set `EMAIL_FROM` = `ScheduleHQ <noreply@yourdomain.com>` (or any address at your verified domain)
+7. Redeploy
+
+Resend free tier: 3,000 emails/month, 100/day. Plenty for most small teams.
 
 ## Deploy to Vercel (free)
 
-1. Push this repo to GitHub (private is fine)
-2. Go to https://vercel.com → **Add New → Project** → import the repo
-3. In **Environment Variables** add:
+1. Push this repo to GitHub
+2. https://vercel.com → **Add New → Project** → import the repo
+3. **Environment Variables** — add:
    - `DATABASE_URL` (from Neon)
-   - `SESSION_SECRET` (generate: `openssl rand -base64 32` or any long random string)
-   - `RESEND_API_KEY`, `EMAIL_FROM` (optional for first deploy)
+   - `SESSION_SECRET` (generate: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`)
+   - `RESEND_API_KEY`, `EMAIL_FROM` (optional — app works without)
    - `NEXT_PUBLIC_APP_URL` → your Vercel URL (e.g. `https://schedulehq.vercel.app`)
 4. Click **Deploy**
 
-The build runs `prisma generate && next build` automatically.
-
-After the first deploy, run the schema push from your machine (one time):
+First deploy after Neon setup, run once from your machine:
 
 ```bash
 DATABASE_URL="<prod url>" npx prisma db push
 ```
 
-Or add a small deploy hook — see Prisma docs.
-
 ## Role model
 
 | Role     | Can do                                                                 |
 | -------- | ---------------------------------------------------------------------- |
-| Owner    | Everything. One per workspace (the signup account).                   |
+| Owner    | Everything. At least one per workspace.                               |
 | Admin    | Manage managers/employees, workspace theme & settings.                 |
 | Manager  | Build schedules, post announcements, handle reports, invite employees. |
 | Employee | View schedule & announcements, file reports.                           |
 
-Admins cannot demote/remove Owners. Each role can only invite roles below it.
+Roles are **per-workspace** — you might be Owner of your own business and Employee at a friend's. Each role can only invite roles below it.
 
 ## Architecture notes
 
@@ -115,12 +149,13 @@ Admins cannot demote/remove Owners. Each role can only invite roles below it.
 - **`/src/lib`** — db client, session, auth helpers, email, validation, theme
 - **`/src/components`** — UI primitives (`ui/`) and shared widgets
 - **`/prisma/schema.prisma`** — data model (Postgres)
+- **`/scripts/`** — one-off migration scripts
 
-Server Actions handle all mutations (no REST boilerplate). Session is a DB-backed cookie (`shq_session`) tied to a `Session` row — logout invalidates it server-side.
+Server Actions handle all mutations. Session is a DB-backed cookie (`shq_session`) tied to a `Session` row with the user's current active org — logout invalidates it server-side.
 
 ## Mobile app (roadmap)
 
-The codebase is structured so the same server actions and Prisma layer back a mobile client later. Most likely path: **Expo / React Native** sharing the Zod schemas in `src/lib/validation.ts` and hitting `/api/*` route handlers added for mobile. The existing web app stays the source of truth.
+The codebase is structured so the same server actions and Prisma layer back a mobile client later. Most likely path: **Expo / React Native** hitting `/api/*` route handlers added for mobile. Shared Zod schemas in `src/lib/validation.ts`. The existing web app stays the source of truth.
 
 ## Scripts
 

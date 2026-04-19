@@ -19,11 +19,11 @@ export default async function SchedulePage({ searchParams }: { searchParams: { w
   const nextWeek = toDayKey(addDays(weekStart, 7));
   const today = toDayKey(startOfWeek(new Date()));
 
-  const [employees, shifts, dayNotes] = await Promise.all([
-    prisma.user.findMany({
+  const [memberships, shifts, dayNotes] = await Promise.all([
+    prisma.membership.findMany({
       where: { organizationId: user.organizationId, active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, role: true },
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: { user: { name: "asc" } },
     }),
     prisma.shift.findMany({
       where: {
@@ -71,7 +71,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: { w
       <ScheduleWeek
         canManage={canManage}
         weekStartISO={weekStart.toISOString()}
-        employees={employees.map((e) => ({ id: e.id, name: e.name, role: e.role }))}
+        employees={memberships.map((m) => ({ id: m.user.id, name: m.user.name, role: m.role }))}
         shifts={shifts.map((s) => ({
           id: s.id,
           employeeId: s.employeeId,

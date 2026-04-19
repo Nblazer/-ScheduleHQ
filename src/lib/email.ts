@@ -63,6 +63,15 @@ export function verificationEmail(p: { name: string; token: string }) {
   `);
 }
 
+export function addedToOrgEmail(p: { name: string; inviterName: string; orgName: string }) {
+  const url = `${appUrl}/dashboard`;
+  return layout(`
+    <h1 style="font-size:20px;margin:0 0 12px">You've been added to ${escape(p.orgName)}.</h1>
+    <p style="margin:0 0 18px;line-height:1.6">${escape(p.inviterName)} added your existing ScheduleHQ account to ${escape(p.orgName)}. You can switch to this workspace from the sidebar.</p>
+    <p style="margin:0 0 24px">${button(url, "Open ScheduleHQ")}</p>
+  `);
+}
+
 export function inviteEmail(p: { name: string; inviterName: string; orgName: string; token: string }) {
   const url = `${appUrl}/invite?token=${p.token}`;
   return layout(`
