@@ -13,6 +13,7 @@ import {
   Menu,
   LogOut,
   ChevronDown,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
@@ -33,6 +34,7 @@ const NAV: Item[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/schedule", label: "Schedule", icon: CalendarDays },
   { href: "/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/resources", label: "Resources", icon: BookOpen },
   { href: "/reports", label: "Reports", icon: Inbox },
   { href: "/team", label: "Team", icon: Users, minRole: "MANAGER" },
   { href: "/settings", label: "Settings", icon: Settings },

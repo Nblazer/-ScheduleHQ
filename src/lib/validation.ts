@@ -64,6 +64,12 @@ export const dayNoteSchema = z.object({
 export const deleteScopeSchema = z.enum(["single", "future", "series"]);
 export type DeleteScope = z.infer<typeof deleteScopeSchema>;
 
+export const resourcePageSchema = z.object({
+  title: z.string().trim().min(1, "Title required.").max(120),
+  icon: z.string().trim().max(8).optional().nullable(),
+  body: z.string().max(20000, "Page is too long.").default(""),
+});
+
 // Organization logo — data URL, capped at 256KB post-base64.
 const MAX_LOGO_BYTES = 256 * 1024;
 export const logoDataUrlSchema = z

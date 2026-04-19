@@ -50,6 +50,7 @@ model Organization {
   dayNotes        DayNote[]
   announcements   Announcement[]
   reports         Report[]
+  resourcePages   ResourcePage[]
 }
 
 model User {
@@ -82,6 +83,7 @@ model User {
   announcementsPosted Announcement[]
   reportsSubmitted    Report[]       @relation("ReportSubmitter")
   reportsAssigned     Report[]       @relation("ReportAssignee")
+  resourcePagesCreated ResourcePage[]
 
   @@index([organizationId])
 }
@@ -201,6 +203,25 @@ model Announcement {
   createdAt       DateTime     @default(now())
 
   @@index([organizationId, createdAt])
+}
+
+// A free-form content page (training videos, handbooks, recipes, links, etc.).
+// Managers can create/edit; everyone in the org can view. Body is plain text
+// with URL + YouTube-link auto-detection at render time — no rich-text editor.
+model ResourcePage {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title           String
+  icon            String?      // An emoji or short glyph shown on the card/tab
+  body            String       @default("")
+  sortOrder       Int          @default(0)
+  createdById     String
+  createdBy       User         @relation(fields: [createdById], references: [id])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId, sortOrder])
 }
 
 model Report {
