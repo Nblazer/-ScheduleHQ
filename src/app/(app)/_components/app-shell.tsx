@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
 import { LogoMark } from "@/components/logo";
 import { OrgSwitcher } from "./org-switcher";
+import { NotificationBell, type NotificationInvite } from "./notifications";
 
 type Item = {
   href: string;
@@ -37,7 +38,15 @@ const NAV: Item[] = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function AppShell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
+export function AppShell({
+  user,
+  notifications,
+  children,
+}: {
+  user: SessionUser;
+  notifications: NotificationInvite[];
+  children: React.ReactNode;
+}) {
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
   const allowed = NAV.filter((n) => !n.minRole || RANK[user.role] >= RANK[n.minRole]);
@@ -105,6 +114,7 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex-1" />
+          <NotificationBell invites={notifications} />
           <div className="hidden sm:flex flex-col items-end">
             <div className="text-sm font-medium">{user.name}</div>
             <div className="text-xs text-muted-foreground">{user.email}</div>

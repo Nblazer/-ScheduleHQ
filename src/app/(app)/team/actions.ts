@@ -121,6 +121,57 @@ export async function setActiveAction(
   return { ok: true };
 }
 
+// Permanently removes a member from the workspace. Different from deactivate —
+// this deletes their Membership row entirely. They'd need a fresh invite to come back.
+// Historical records they authored remain intact.
+export async function removeMemberAction(targetId: string): Promise<Result> {
+  const actor = await getSessionUser();
+  if (!actor) return { ok: false, error: "Not signed in." };
+  if (!hasRole(actor, "MANAGER")) return { ok: false, error: "Managers+ only." };
+
+  if (targetId === actor.id) {
+    return { ok: false, error: "Use Settings → Delete Account to remove yourself." };
+  }
+
+  const membership = await prisma.membership.findUnique({
+    where: {
+      userId_organizationId: { userId: targetId, organizationId: actor.organizationId },
+    },
+  });
+  if (!membership) return { ok: false, error: "User not found in your organization." };
+
+  if (!canManage(actor.role, membership.role)) {
+    return { ok: false, error: "You can't remove someone at or above your role." };
+  }
+
+  // If they're the last OWNER, refuse — would orphan the workspace.
+  if (membership.role === "OWNER") {
+    const otherOwners = await prisma.membership.count({
+      where: {
+        organizationId: actor.organizationId,
+        role: "OWNER",
+        active: true,
+        userId: { not: targetId },
+      },
+    });
+    if (otherOwners === 0) {
+      return { ok: false, error: "Can't remove the only Owner. Promote someone else to Owner first." };
+    }
+  }
+
+  await prisma.membership.delete({ where: { id: membership.id } });
+
+  // Invalidate any active session for the removed user on this org — their next
+  // request will fall back to another org or force re-login if none remain.
+  await prisma.session.updateMany({
+    where: { userId: targetId, activeOrganizationId: actor.organizationId },
+    data: { activeOrganizationId: null },
+  });
+
+  revalidatePath("/team");
+  return { ok: true };
+}
+
 export async function revokeInviteAction(inviteId: string): Promise<Result> {
   const actor = await getSessionUser();
   if (!actor) return { ok: false, error: "Not signed in." };

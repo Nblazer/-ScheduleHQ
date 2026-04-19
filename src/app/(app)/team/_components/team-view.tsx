@@ -13,6 +13,7 @@ import {
   Copy,
   Check,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import {
   changeRoleAction,
   setActiveAction,
   revokeInviteAction,
+  removeMemberAction,
   type InviteActionResult,
 } from "../actions";
 
@@ -224,30 +226,57 @@ function MemberRow({
         )}
 
         {canManageTarget && (
-          <Button
-            size="sm"
-            variant={member.active ? "outline" : "secondary"}
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                const r = await setActiveAction(member.id, !member.active);
-                if (r.ok) {
-                  toast.success(member.active ? "Member deactivated." : "Member reactivated.");
-                  router.refresh();
-                } else toast.error(r.error);
-              })
-            }
-          >
-            {member.active ? (
-              <>
-                <UserMinus className="h-3.5 w-3.5" /> Deactivate
-              </>
-            ) : (
-              <>
-                <UserPlus className="h-3.5 w-3.5" /> Reactivate
-              </>
-            )}
-          </Button>
+          <>
+            <Button
+              size="sm"
+              variant={member.active ? "outline" : "secondary"}
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  const r = await setActiveAction(member.id, !member.active);
+                  if (r.ok) {
+                    toast.success(member.active ? "Member deactivated." : "Member reactivated.");
+                    router.refresh();
+                  } else toast.error(r.error);
+                })
+              }
+            >
+              {member.active ? (
+                <>
+                  <UserMinus className="h-3.5 w-3.5" /> Deactivate
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-3.5 w-3.5" /> Reactivate
+                </>
+              )}
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              disabled={pending}
+              title="Remove from workspace"
+              aria-label={`Remove ${member.name}`}
+              onClick={() =>
+                start(async () => {
+                  if (
+                    !confirm(
+                      `Remove ${member.name} from the workspace?\n\nThey'll lose access immediately. To come back, they'd need a new invite. Records they created stay.`,
+                    )
+                  )
+                    return;
+                  const r = await removeMemberAction(member.id);
+                  if (r.ok) {
+                    toast.success(`${member.name} removed.`);
+                    router.refresh();
+                  } else toast.error(r.error);
+                })
+              }
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </>
         )}
       </div>
     </div>
