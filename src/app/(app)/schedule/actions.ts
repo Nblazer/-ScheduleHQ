@@ -213,6 +213,92 @@ export async function createDayNoteAction(_: Result | null, formData: FormData):
   return { ok: true };
 }
 
+// Clone every shift + day note from one week into the following week.
+// Idempotent-ish: if a shift with the same employee/start time already
+// exists in the target week, it's skipped (no duplicates).
+export async function copyWeekAction(weekStartISO: string): Promise<Result> {
+  const user = await getSessionUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+  if (!hasRole(user, "MANAGER")) return { ok: false, error: "Managers+ only." };
+
+  const weekStart = new Date(weekStartISO);
+  if (Number.isNaN(weekStart.getTime())) {
+    return { ok: false, error: "Invalid week." };
+  }
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+
+  const [sourceShifts, sourceNotes] = await Promise.all([
+    prisma.shift.findMany({
+      where: {
+        organizationId: user.organizationId,
+        startsAt: { gte: weekStart, lt: weekEnd },
+      },
+    }),
+    prisma.dayNote.findMany({
+      where: {
+        organizationId: user.organizationId,
+        date: { gte: weekStart, lt: weekEnd },
+      },
+    }),
+  ]);
+
+  if (sourceShifts.length === 0 && sourceNotes.length === 0) {
+    return { ok: false, error: "This week has nothing to copy." };
+  }
+
+  const shift = (d: Date) => {
+    const r = new Date(d);
+    r.setUTCDate(r.getUTCDate() + 7);
+    return r;
+  };
+
+  // Fetch existing shifts in the target week to skip exact duplicates.
+  const targetStart = shift(weekStart);
+  const targetEnd = shift(weekEnd);
+  const existing = await prisma.shift.findMany({
+    where: {
+      organizationId: user.organizationId,
+      startsAt: { gte: targetStart, lt: targetEnd },
+    },
+    select: { employeeId: true, startsAt: true },
+  });
+  const existingKey = new Set(
+    existing.map((e) => `${e.employeeId}:${e.startsAt.toISOString()}`),
+  );
+
+  const newShifts = sourceShifts
+    .map((s) => ({
+      organizationId: s.organizationId,
+      employeeId: s.employeeId,
+      createdById: user.id,
+      startsAt: shift(s.startsAt),
+      endsAt: shift(s.endsAt),
+      position: s.position,
+      notes: s.notes,
+      seriesId: null, // clones stand alone; users can recreate recurrence if they want
+    }))
+    .filter((s) => !existingKey.has(`${s.employeeId}:${s.startsAt.toISOString()}`));
+
+  const newNotes = sourceNotes.map((n) => ({
+    organizationId: n.organizationId,
+    date: shift(n.date),
+    title: n.title,
+    body: n.body,
+    color: n.color,
+    createdById: user.id,
+    seriesId: null,
+  }));
+
+  await prisma.$transaction([
+    prisma.shift.createMany({ data: newShifts }),
+    prisma.dayNote.createMany({ data: newNotes }),
+  ]);
+
+  revalidatePath("/schedule");
+  return { ok: true };
+}
+
 export async function deleteDayNoteAction(id: string, scope: DeleteScope = "single"): Promise<Result> {
   const user = await getSessionUser();
   if (!user) return { ok: false, error: "Not signed in." };

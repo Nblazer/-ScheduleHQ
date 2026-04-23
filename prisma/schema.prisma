@@ -74,6 +74,11 @@ model User {
   // Per-user theme override (falls back to org default if null)
   themePreset         String?
   themeAccent         String?
+  // Optional contact + payout info shared across all their workspaces.
+  phone               String?
+  // Free-form payment profile string (e.g. "@venmo-handle", "paypal.me/x",
+  // "Cash App: $User"). Surfaced to managers when paying out timesheets.
+  paymentProfile      String?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
@@ -109,6 +114,9 @@ model Membership {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   role           Role
   active         Boolean      @default(true)
+  // Hourly pay rate in cents (e.g. 1500 = $15/hr). Null = not set.
+  // Privacy: only the member themselves and managers+ of the org see this.
+  hourlyRateCents Int?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 

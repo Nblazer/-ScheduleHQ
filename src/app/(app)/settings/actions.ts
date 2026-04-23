@@ -61,9 +61,25 @@ export async function saveProfileAction(
 ): Promise<Result> {
   const user = await getSessionUser();
   if (!user) return { ok: false, error: "Not signed in." };
-  const parsed = nameSchema.safeParse(formData.get("name"));
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid name." };
-  await prisma.user.update({ where: { id: user.id }, data: { name: parsed.data } });
+
+  const nameParsed = nameSchema.safeParse(formData.get("name"));
+  if (!nameParsed.success)
+    return { ok: false, error: nameParsed.error.issues[0]?.message ?? "Invalid name." };
+
+  const phoneRaw = String(formData.get("phone") ?? "").trim();
+  const payoutRaw = String(formData.get("paymentProfile") ?? "").trim();
+
+  if (phoneRaw.length > 40) return { ok: false, error: "Phone number is too long." };
+  if (payoutRaw.length > 120) return { ok: false, error: "Payment profile is too long." };
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      name: nameParsed.data,
+      phone: phoneRaw || null,
+      paymentProfile: payoutRaw || null,
+    },
+  });
   revalidatePath("/", "layout");
   return { ok: true };
 }

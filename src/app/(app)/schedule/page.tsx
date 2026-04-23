@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScheduleWeek } from "./_components/schedule-week";
 import { PrintButton } from "./_components/print-button";
+import { CopyWeekButton } from "./_components/copy-week-button";
 
 export const metadata = { title: "Schedule" };
 
@@ -98,6 +99,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: { w
             </Button>
           </Link>
           <div className="w-px h-6 bg-border mx-1" />
+          {canManage ? <CopyWeekButton weekStartISO={weekStart.toISOString()} /> : null}
           <PrintButton />
         </div>
       </div>

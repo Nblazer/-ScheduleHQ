@@ -172,6 +172,41 @@ export async function removeMemberAction(targetId: string): Promise<Result> {
   return { ok: true };
 }
 
+// Set a member's hourly pay rate (in cents). Only managers+ can set.
+// Rate visibility: the member themselves and managers+ see it. Other
+// employees don't — enforced by the queries that surface it.
+export async function setMemberWageAction(
+  targetUserId: string,
+  hourlyRateCents: number | null,
+): Promise<Result> {
+  const actor = await getSessionUser();
+  if (!actor) return { ok: false, error: "Not signed in." };
+  if (!hasRole(actor, "MANAGER")) return { ok: false, error: "Managers+ only." };
+
+  if (
+    hourlyRateCents !== null &&
+    (!Number.isFinite(hourlyRateCents) || hourlyRateCents < 0 || hourlyRateCents > 1_000_00)
+  ) {
+    return { ok: false, error: "Rate must be between $0.00 and $1000.00/hr." };
+  }
+
+  const membership = await prisma.membership.findUnique({
+    where: {
+      userId_organizationId: { userId: targetUserId, organizationId: actor.organizationId },
+    },
+  });
+  if (!membership) return { ok: false, error: "User not found in your organization." };
+
+  await prisma.membership.update({
+    where: { id: membership.id },
+    data: { hourlyRateCents },
+  });
+
+  revalidatePath("/team");
+  revalidatePath("/timesheet");
+  return { ok: true };
+}
+
 export async function revokeInviteAction(inviteId: string): Promise<Result> {
   const actor = await getSessionUser();
   if (!actor) return { ok: false, error: "Not signed in." };

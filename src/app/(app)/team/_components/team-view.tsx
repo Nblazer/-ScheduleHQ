@@ -14,6 +14,7 @@ import {
   Check,
   AlertTriangle,
   Trash2,
+  DollarSign,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import {
   setActiveAction,
   revokeInviteAction,
   removeMemberAction,
+  setMemberWageAction,
   type InviteActionResult,
 } from "../actions";
 
@@ -38,6 +40,7 @@ type Member = {
   active: boolean;
   emailVerified: boolean;
   createdAt: string;
+  hourlyRateCents: number | null;
 };
 
 type Invite = {
@@ -73,6 +76,7 @@ export function TeamView({
     email: string;
     alreadyHasAccount?: boolean;
   } | null>(null);
+  const [wageDialog, setWageDialog] = React.useState<Member | null>(null);
 
   return (
     <>
@@ -129,6 +133,7 @@ export function TeamView({
                 currentUserId={currentUserId}
                 currentRole={currentRole}
                 assignableRoles={assignableRoles}
+                onSetWage={() => setWageDialog(m)}
               />
             ))}
           </div>
@@ -155,6 +160,9 @@ export function TeamView({
           onClose={() => setShareDialog(null)}
         />
       )}
+      {wageDialog && (
+        <WageDialog member={wageDialog} onClose={() => setWageDialog(null)} />
+      )}
     </>
   );
 }
@@ -164,11 +172,13 @@ function MemberRow({
   currentUserId,
   currentRole,
   assignableRoles,
+  onSetWage,
 }: {
   member: Member;
   currentUserId: string;
   currentRole: Role;
   assignableRoles: Role[];
+  onSetWage: () => void;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -224,6 +234,16 @@ function MemberRow({
             {roleLabel(member.role)}
           </Badge>
         )}
+
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onSetWage}
+          title={member.hourlyRateCents != null ? `${formatRate(member.hourlyRateCents)}/hr` : "Set hourly rate"}
+        >
+          <DollarSign className="h-3.5 w-3.5" />
+          {member.hourlyRateCents != null ? formatRate(member.hourlyRateCents) : "Set pay"}
+        </Button>
 
         {canManageTarget && (
           <>
@@ -461,4 +481,85 @@ function Submit() {
 
 function roleLabel(r: Role) {
   return r.charAt(0) + r.slice(1).toLowerCase();
+}
+
+function formatRate(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+function WageDialog({ member, onClose }: { member: Member; onClose: () => void }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [pending, start] = React.useTransition();
+  const [dollars, setDollars] = React.useState(
+    member.hourlyRateCents != null ? (member.hourlyRateCents / 100).toFixed(2) : "",
+  );
+
+  const save = () =>
+    start(async () => {
+      const trimmed = dollars.trim();
+      if (trimmed === "") {
+        const r = await setMemberWageAction(member.id, null);
+        if (r.ok) {
+          toast.success("Pay rate cleared.");
+          router.refresh();
+          onClose();
+        } else toast.error(r.error);
+        return;
+      }
+      const n = Number(trimmed);
+      if (!Number.isFinite(n) || n < 0) {
+        toast.error("Enter a valid dollar amount.");
+        return;
+      }
+      const cents = Math.round(n * 100);
+      const r = await setMemberWageAction(member.id, cents);
+      if (r.ok) {
+        toast.success(`${member.name}: ${formatRate(cents)}/hr`);
+        router.refresh();
+        onClose();
+      } else toast.error(r.error);
+    });
+
+  return (
+    <Dialog open onClose={onClose}>
+      <DialogHeader
+        title={`Pay rate for ${member.name}`}
+        description="Dollars per hour. Only this employee and managers+ see the rate."
+      />
+      <DialogBody>
+        <Label htmlFor="rate">Hourly rate (USD)</Label>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+            <Input
+              id="rate"
+              value={dollars}
+              onChange={(e) => setDollars(e.target.value)}
+              type="number"
+              step="0.25"
+              min="0"
+              max="1000"
+              inputMode="decimal"
+              placeholder="15.00"
+              className="pl-7"
+              autoFocus
+            />
+          </div>
+          <span className="text-sm text-muted-foreground">/ hr</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          Leave blank to clear the rate.
+        </p>
+      </DialogBody>
+      <DialogFooter>
+        <Button variant="ghost" onClick={onClose} disabled={pending}>
+          Cancel
+        </Button>
+        <Button onClick={save} loading={pending}>
+          Save rate
+        </Button>
+      </DialogFooter>
+    </Dialog>
+  );
 }

@@ -14,6 +14,8 @@ import {
   LogOut,
   ChevronDown,
   BookOpen,
+  DollarSign,
+  Contact,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
@@ -33,8 +35,10 @@ const RANK = { OWNER: 4, ADMIN: 3, MANAGER: 2, EMPLOYEE: 1 } as const;
 const NAV: Item[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/schedule", label: "Schedule", icon: CalendarDays },
+  { href: "/timesheet", label: "Timesheet", icon: DollarSign },
   { href: "/announcements", label: "Announcements", icon: Megaphone },
   { href: "/resources", label: "Resources", icon: BookOpen },
+  { href: "/contacts", label: "Contacts", icon: Contact },
   { href: "/reports", label: "Reports", icon: Inbox },
   { href: "/team", label: "Team", icon: Users, minRole: "MANAGER" },
   { href: "/settings", label: "Settings", icon: Settings },

@@ -20,6 +20,30 @@ export function inviteUrl(token: string) {
   return `${base}/invite?token=${token}`;
 }
 
+// Create a new organization owned by an existing user. Used by the "New
+// workspace" button in settings so a user can spin up more businesses
+// without signing up again.
+export async function createAdditionalWorkspace(params: {
+  userId: string;
+  orgName: string;
+}) {
+  let slug = slugify(params.orgName) || "org";
+  let attempt = 0;
+  while (await prisma.organization.findUnique({ where: { slug } })) {
+    attempt += 1;
+    slug = `${slugify(params.orgName)}-${attempt}`;
+    if (attempt > 50) throw new Error("Could not create a unique org slug.");
+  }
+  const { organization } = await prisma.$transaction(async (tx) => {
+    const org = await tx.organization.create({ data: { name: params.orgName, slug } });
+    await tx.membership.create({
+      data: { userId: params.userId, organizationId: org.id, role: "OWNER" },
+    });
+    return { organization: org };
+  });
+  return organization;
+}
+
 export async function createOrganizationAndOwner(params: {
   orgName: string;
   name: string;

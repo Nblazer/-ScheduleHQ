@@ -33,6 +33,8 @@ export default async function TeamPage() {
     }),
   ]);
 
+  // Managers see everyone's rate; the helper fn on the client is gated by role.
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
@@ -57,6 +59,7 @@ export default async function TeamPage() {
           active: m.active,
           emailVerified: m.user.emailVerifiedAt !== null,
           createdAt: m.user.createdAt.toISOString(),
+          hourlyRateCents: m.hourlyRateCents,
         }))}
         invites={invites.map((i) => ({
           id: i.id,

@@ -7,6 +7,7 @@ import { PasswordForm } from "./_components/password-form";
 import { OrgForm } from "./_components/org-form";
 import { LogoForm } from "./_components/logo-form";
 import { DeleteAccount } from "./_components/delete-account";
+import { WorkspaceLifecycle } from "./_components/workspace-lifecycle";
 import { getDeleteAccountBlockers } from "./actions";
 
 export const metadata = { title: "Settings" };
@@ -14,7 +15,9 @@ export const metadata = { title: "Settings" };
 export default async function SettingsPage() {
   const user = (await getSessionUser())!;
   const isAdmin = hasRole(user, "ADMIN");
-  const [org, deleteBlockers] = await Promise.all([
+  const isOwner = user.role === "OWNER";
+
+  const [org, dbUser, otherMembers, deleteBlockers] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: user.organizationId },
       select: {
@@ -24,6 +27,19 @@ export default async function SettingsPage() {
         logoDataUrl: true,
       },
     }),
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { phone: true, paymentProfile: true },
+    }),
+    prisma.membership.findMany({
+      where: {
+        organizationId: user.organizationId,
+        active: true,
+        userId: { not: user.id },
+      },
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+    }),
     getDeleteAccountBlockers(),
   ]);
 
@@ -31,7 +47,7 @@ export default async function SettingsPage() {
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Personalize ScheduleHQ and manage your account.</p>
+        <p className="text-sm text-muted-foreground">Personalize ScheduleHQ and manage your workspaces.</p>
       </div>
 
       <Card>
@@ -53,10 +69,16 @@ export default async function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Profile</CardTitle>
-          <CardDescription>Your display name inside the workspace.</CardDescription>
+          <CardDescription>
+            Your display name, phone (shared via Contacts), and how your managers pay you.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <ProfileForm initialName={user.name} />
+          <ProfileForm
+            initialName={user.name}
+            initialPhone={dbUser?.phone ?? null}
+            initialPaymentProfile={dbUser?.paymentProfile ?? null}
+          />
         </CardContent>
       </Card>
 
@@ -85,6 +107,27 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Workspaces</CardTitle>
+          <CardDescription>
+            Create another one, leave this one, transfer ownership, or delete the
+            whole workspace (Owners only).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <WorkspaceLifecycle
+            isOwner={isOwner}
+            orgName={user.organizationName}
+            otherMembers={otherMembers.map((m) => ({
+              id: m.user.id,
+              name: m.user.name,
+              role: m.role,
+            }))}
+          />
+        </CardContent>
+      </Card>
 
       <Card className="border-destructive/40">
         <CardHeader>
