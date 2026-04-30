@@ -112,9 +112,10 @@ export function AppShell({
         )}
       >
         {/* Header: org switcher (Work) or branded title (Chat / Personal) */}
-        <div className="h-16 px-3 flex items-center gap-2 border-b border-border shrink-0">
-          <div className="pl-2">
+        <div className="h-20 px-3 flex items-center gap-3 border-b border-border shrink-0">
+          <div className="pl-1">
             <LogoMark
+              size={44}
               src={section === "work" ? user.organizationLogoDataUrl : null}
               alt={section === "work" ? user.organizationName : "ScheduleHQ"}
             />

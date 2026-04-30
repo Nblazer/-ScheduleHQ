@@ -8,9 +8,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="absolute inset-0 bg-radial-glow" />
         <div className="absolute inset-0 bg-grid opacity-30 [mask-image:radial-gradient(ellipse_at_center,black,transparent_70%)]" />
         <div className="relative h-full flex flex-col p-10">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <LogoMark />
-            <span>ScheduleHQ</span>
+          <Link href="/" className="flex items-center gap-3 font-semibold">
+            <LogoMark size={44} />
+            <span className="text-lg">ScheduleHQ</span>
           </Link>
           <div className="mt-auto max-w-md">
             <blockquote className="text-xl font-medium leading-relaxed text-foreground/90">
@@ -25,9 +25,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="flex flex-col items-center justify-center p-6 md:p-10">
         <div className="w-full max-w-md flex-1 flex flex-col justify-center">
           <div className="lg:hidden mb-8">
-            <Link href="/" className="flex items-center gap-2 font-semibold">
-              <LogoMark />
-              <span>ScheduleHQ</span>
+            <Link href="/" className="flex items-center gap-3 font-semibold">
+              <LogoMark size={44} />
+              <span className="text-lg">ScheduleHQ</span>
             </Link>
           </div>
           {children}

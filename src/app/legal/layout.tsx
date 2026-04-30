@@ -6,10 +6,10 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-border">
-        <div className="container h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <LogoMark />
-            <span>ScheduleHQ</span>
+        <div className="container h-20 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-3 font-semibold">
+            <LogoMark size={44} />
+            <span className="text-lg">ScheduleHQ</span>
           </Link>
           <Link
             href="/"

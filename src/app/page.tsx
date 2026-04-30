@@ -38,10 +38,10 @@ export default async function LandingPage() {
 function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 glass border-b border-border/60">
-      <div className="container flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <LogoMark />
-          <span>ScheduleHQ</span>
+      <div className="container flex h-20 items-center justify-between">
+        <Link href="/" className="flex items-center gap-3 font-semibold">
+          <LogoMark size={44} />
+          <span className="text-lg">ScheduleHQ</span>
         </Link>
         <nav className="hidden md:flex items-center gap-7 text-sm text-muted-foreground">
           <a href="#features" className="hover:text-foreground transition">Features</a>
@@ -337,8 +337,8 @@ function SiteFooter() {
     <footer className="border-t border-border/60 mt-auto">
       <div className="container py-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
-          <LogoMark />
-          <span>ScheduleHQ</span>
+          <LogoMark size={28} />
+          <span className="font-medium">ScheduleHQ</span>
           <span className="opacity-60">© {new Date().getFullYear()}</span>
         </div>
         <div className="flex items-center gap-x-5 gap-y-1 flex-wrap justify-center">
