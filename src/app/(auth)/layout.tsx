@@ -22,8 +22,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </div>
         </div>
       </div>
-      <div className="flex items-center justify-center p-6 md:p-10">
-        <div className="w-full max-w-md">
+      <div className="flex flex-col items-center justify-center p-6 md:p-10">
+        <div className="w-full max-w-md flex-1 flex flex-col justify-center">
           <div className="lg:hidden mb-8">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <LogoMark />
@@ -31,6 +31,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             </Link>
           </div>
           {children}
+        </div>
+        <div className="mt-10 text-xs text-muted-foreground flex items-center gap-x-4 gap-y-1 flex-wrap justify-center">
+          <Link href="/legal/privacy" className="hover:text-foreground transition">Privacy</Link>
+          <Link href="/legal/terms" className="hover:text-foreground transition">Terms</Link>
+          <Link href="/legal/cookies" className="hover:text-foreground transition">Cookies</Link>
         </div>
       </div>
     </div>

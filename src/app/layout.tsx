@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ToastProvider } from "@/components/ui/toast";
+import { CookieBanner } from "@/components/cookie-banner";
 import { getSessionUser } from "@/lib/session";
 import {
   DEFAULT_ACCENT,
@@ -38,6 +39,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const c = cookies();
   const cookiePreset = c.get("shq_theme")?.value;
   const cookieAccent = c.get("shq_accent")?.value;
+  const consented = c.get("shq_cookie_consent")?.value === "accepted";
 
   const preset: ThemePreset = isPreset(user?.themePreset)
     ? (user!.themePreset as ThemePreset)
@@ -57,6 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ThemeProvider initialPreset={preset} initialAccent={accent}>
           <ToastProvider>{children}</ToastProvider>
         </ThemeProvider>
+        {!consented ? <CookieBanner /> : null}
       </body>
     </html>
   );

@@ -41,8 +41,12 @@ export function SignupForm() {
       </div>
       {state && !state.ok ? <FieldError>{state.error}</FieldError> : null}
       <SubmitButton />
-      <p className="text-xs text-muted-foreground text-center pt-2">
-        By creating an account you agree to receive transactional email related to your workspace.
+      <p className="text-xs text-muted-foreground text-center pt-2 leading-relaxed">
+        By creating an account you agree to our{" "}
+        <a href="/legal/terms" className="text-primary hover:underline">Terms of Service</a>{" "}
+        and{" "}
+        <a href="/legal/privacy" className="text-primary hover:underline">Privacy Policy</a>,
+        and to receive transactional email related to your workspace.
       </p>
     </form>
   );

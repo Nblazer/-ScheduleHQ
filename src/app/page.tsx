@@ -341,9 +341,13 @@ function SiteFooter() {
           <span>ScheduleHQ</span>
           <span className="opacity-60">© {new Date().getFullYear()}</span>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-x-5 gap-y-1 flex-wrap justify-center">
           <Link href="/login" className="hover:text-foreground transition">Log in</Link>
           <Link href="/signup" className="hover:text-foreground transition">Sign up</Link>
+          <span className="opacity-30 hidden md:inline">·</span>
+          <Link href="/legal/privacy" className="hover:text-foreground transition">Privacy</Link>
+          <Link href="/legal/terms" className="hover:text-foreground transition">Terms</Link>
+          <Link href="/legal/cookies" className="hover:text-foreground transition">Cookies</Link>
         </div>
       </div>
     </footer>
