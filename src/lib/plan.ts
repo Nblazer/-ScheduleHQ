@@ -43,12 +43,21 @@ export function fmtLimit(n: number): string {
   return Number.isFinite(n) ? String(n) : "Unlimited";
 }
 
+// While Stripe isn't wired up, plan limits would lock people out of features
+// they can't pay to unlock. Flip this true once payments ship so caps start
+// enforcing. Settings still shows the tiers as aspirational marketing.
+//
+// Override at runtime via env: set PAYMENTS_ENABLED=true on Vercel and
+// redeploy to enable enforcement without changing code.
+export const PAYMENTS_ENABLED = process.env.PAYMENTS_ENABLED === "true";
+
 // Used by features that need to know if a limit applies. Returns null if
 // the action is allowed; returns a friendly error string otherwise.
 export function checkWorkspaceLimit(
   plan: Plan,
   ownedWorkspaceCount: number,
 ): string | null {
+  if (!PAYMENTS_ENABLED) return null;
   const limit = PLAN_LIMITS[plan].maxWorkspaces;
   if (ownedWorkspaceCount >= limit) {
     return `Your ${PLAN_LABEL[plan]} plan allows ${fmtLimit(limit)} workspace${
@@ -62,6 +71,7 @@ export function checkMemberLimit(
   ownerPlan: Plan,
   currentActiveMembers: number,
 ): string | null {
+  if (!PAYMENTS_ENABLED) return null;
   const limit = PLAN_LIMITS[ownerPlan].maxMembersPerWorkspace;
   if (currentActiveMembers >= limit) {
     return `This workspace's owner is on the ${PLAN_LABEL[ownerPlan]} plan, capped at ${fmtLimit(

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PAYMENTS_ENABLED } from "@/lib/plan";
 import { PlanSection } from "../_components/plan-section";
 
 export const metadata = { title: "Plan · Settings" };
@@ -34,6 +35,7 @@ export default async function PlanSettingsPage() {
           currentPlan={dbUser?.plan ?? "FREE"}
           ownedWorkspaces={ownedCount}
           activeMembersInCurrentOrg={activeMembersCount}
+          paymentsEnabled={PAYMENTS_ENABLED}
         />
       </CardContent>
     </Card>

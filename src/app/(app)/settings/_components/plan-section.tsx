@@ -9,6 +9,9 @@ import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { fmtLimit, PLAN_LIMITS, PLAN_LABEL, PLAN_PRICE, PLAN_TAGLINE } from "@/lib/plan";
 
+// We can't import PAYMENTS_ENABLED directly into a client component because
+// it's a server-side env check. The parent server page passes it down.
+
 const FEATURES: Record<Plan, string[]> = {
   FREE: [
     "1 workspace",
@@ -41,10 +44,12 @@ export function PlanSection({
   currentPlan,
   ownedWorkspaces,
   activeMembersInCurrentOrg,
+  paymentsEnabled,
 }: {
   currentPlan: Plan;
   ownedWorkspaces: number;
   activeMembersInCurrentOrg: number;
+  paymentsEnabled: boolean;
 }) {
   const toast = useToast();
   const limits = PLAN_LIMITS[currentPlan];
@@ -57,6 +62,17 @@ export function PlanSection({
 
   return (
     <div className="space-y-5">
+      {!paymentsEnabled && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm">
+          <div className="font-medium text-emerald-200">Early access — limits are off</div>
+          <div className="text-emerald-200/80 mt-1">
+            While we're shipping payments, every workspace runs unlimited regardless of plan.
+            The tiers below are how billing will work once Stripe lands. You won't lose any
+            data when limits turn on — pricing will be Free / $6.99 / $9.99 as listed.
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
@@ -67,8 +83,10 @@ export function PlanSection({
             <Badge variant="primary">{PLAN_PRICE[currentPlan]}</Badge>
           </div>
           <div className="text-xs text-muted-foreground mt-1">
-            {ownedWorkspaces} of {fmtLimit(limits.maxWorkspaces)} workspaces · this workspace
-            has {activeMembersInCurrentOrg} of {fmtLimit(limits.maxMembersPerWorkspace)} members
+            {ownedWorkspaces} workspaces · this workspace has {activeMembersInCurrentOrg} active members
+            {paymentsEnabled
+              ? ` (cap ${fmtLimit(limits.maxMembersPerWorkspace)})`
+              : " (no caps during early access)"}
           </div>
         </div>
       </div>
