@@ -8,6 +8,7 @@ import { OrgForm } from "./_components/org-form";
 import { LogoForm } from "./_components/logo-form";
 import { DeleteAccount } from "./_components/delete-account";
 import { WorkspaceLifecycle } from "./_components/workspace-lifecycle";
+import { PlanSection } from "./_components/plan-section";
 import { getDeleteAccountBlockers } from "./actions";
 
 export const metadata = { title: "Settings" };
@@ -17,7 +18,7 @@ export default async function SettingsPage() {
   const isAdmin = hasRole(user, "ADMIN");
   const isOwner = user.role === "OWNER";
 
-  const [org, dbUser, otherMembers, deleteBlockers] = await Promise.all([
+  const [org, dbUser, otherMembers, deleteBlockers, ownedCount, activeMembersCount] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: user.organizationId },
       select: {
@@ -29,7 +30,7 @@ export default async function SettingsPage() {
     }),
     prisma.user.findUnique({
       where: { id: user.id },
-      select: { phone: true, paymentProfile: true },
+      select: { phone: true, paymentProfile: true, plan: true },
     }),
     prisma.membership.findMany({
       where: {
@@ -41,6 +42,12 @@ export default async function SettingsPage() {
       orderBy: [{ role: "asc" }, { createdAt: "asc" }],
     }),
     getDeleteAccountBlockers(),
+    prisma.membership.count({
+      where: { userId: user.id, role: "OWNER", active: true },
+    }),
+    prisma.membership.count({
+      where: { organizationId: user.organizationId, active: true },
+    }),
   ]);
 
   return (
@@ -107,6 +114,22 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Plan</CardTitle>
+          <CardDescription>
+            Free includes 1 workspace and 3 people. Upgrade for more.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PlanSection
+            currentPlan={dbUser?.plan ?? "FREE"}
+            ownedWorkspaces={ownedCount}
+            activeMembersInCurrentOrg={activeMembersCount}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

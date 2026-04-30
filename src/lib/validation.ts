@@ -64,6 +64,17 @@ export const dayNoteSchema = z.object({
 export const deleteScopeSchema = z.enum(["single", "future", "series"]);
 export type DeleteScope = z.infer<typeof deleteScopeSchema>;
 
+export const reminderSchema = z.object({
+  title: z.string().trim().min(1, "Title required.").max(160),
+  body: z.string().trim().max(2000).optional().nullable(),
+  color: z.enum(["indigo", "violet", "emerald", "amber", "rose", "sky"]).default("indigo"),
+  scheduledAt: z.coerce.date(),
+  recurrence: z.enum(["NONE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"]).default("NONE"),
+  recurrenceUntil: z.coerce.date().optional().nullable(),
+  // Cap at one week (10080 min) to keep the bell query bounded.
+  notifyBeforeMinutes: z.coerce.number().int().min(0).max(10080).default(0),
+});
+
 export const swapRequestSchema = z.object({
   requesterShiftId: z.string().min(1),
   targetUserId: z.string().min(1),

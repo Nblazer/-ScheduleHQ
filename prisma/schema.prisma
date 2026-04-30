@@ -37,6 +37,20 @@ enum SwapStatus {
   CANCELLED
 }
 
+enum Plan {
+  FREE
+  BASIC
+  PRO
+}
+
+enum ReminderRecurrence {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
 model Organization {
   id              String         @id @default(cuid())
   name            String
@@ -79,6 +93,8 @@ model User {
   // Free-form payment profile string (e.g. "@venmo-handle", "paypal.me/x",
   // "Cash App: $User"). Surfaced to managers when paying out timesheets.
   paymentProfile      String?
+  // Pricing plan. Drives workspace + member-count limits app-wide.
+  plan                Plan           @default(FREE)
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
@@ -99,6 +115,7 @@ model User {
   resourcePagesCreated ResourcePage[]
   swapsRequested      ShiftSwapRequest[] @relation("SwapRequester")
   swapsReceived       ShiftSwapRequest[] @relation("SwapTarget")
+  reminders           PersonalReminder[]
 
   @@index([organizationId])
 }
@@ -254,6 +271,34 @@ model ShiftSwapRequest {
   @@index([organizationId, status])
   @@index([targetUserId, status])
   @@index([requesterId])
+}
+
+// A personal reminder, tied to the User (not a workspace). Travels with them
+// across every business they're in. Supports recurrence and a notify-before
+// window that drives the in-app notification bell.
+model PersonalReminder {
+  id                  String             @id @default(cuid())
+  userId              String
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title               String
+  body                String?
+  // One of: indigo, violet, emerald, amber, rose, sky (matches the accent palette).
+  color               String             @default("indigo")
+  // First occurrence (for non-recurring this is THE occurrence).
+  scheduledAt         DateTime
+  recurrence          ReminderRecurrence @default(NONE)
+  // Optional end date for recurrence; null = forever.
+  recurrenceUntil     DateTime?
+  // Minutes before the scheduled time when the bell should fire.
+  // 0 = at scheduled time. Common: 0, 5, 15, 60, 1440 (1 day), 10080 (1 week).
+  notifyBeforeMinutes Int                @default(0)
+  // Tracks the most recent occurrence the user dismissed from the bell.
+  // Used to skip already-acknowledged occurrences for recurring reminders.
+  lastDismissedAt     DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([userId, scheduledAt])
 }
 
 // A free-form content page (training videos, handbooks, recipes, links, etc.).

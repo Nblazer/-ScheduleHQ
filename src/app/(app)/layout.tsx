@@ -1,9 +1,14 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
+import { dueOccurrence } from "@/lib/recurrence";
 import { AppShell } from "./_components/app-shell";
 import { VerifyBanner } from "./_components/verify-banner";
-import type { NotificationInvite, NotificationSwap } from "./_components/notifications";
+import type {
+  NotificationInvite,
+  NotificationSwap,
+  NotificationReminder,
+} from "./_components/notifications";
 
 function fmtShift(s: { startsAt: Date; endsAt: Date; position: string | null }) {
   const date = s.startsAt.toLocaleDateString("en-US", {
@@ -22,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const now = new Date();
 
-  const [pendingInvitesRaw, pendingSwapsRaw] = await Promise.all([
+  const [pendingInvitesRaw, pendingSwapsRaw, allReminders] = await Promise.all([
     prisma.invite.findMany({
       where: {
         email: user.email.toLowerCase(),
@@ -49,6 +54,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         targetShift: true,
       },
       orderBy: { createdAt: "desc" },
+    }),
+    prisma.personalReminder.findMany({
+      where: { userId: user.id },
     }),
   ]);
 
@@ -79,8 +87,41 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     createdAt: s.createdAt.toISOString(),
   }));
 
+  // Compute which reminders are currently "due" — i.e. inside their notify-before window.
+  const dueReminders: NotificationReminder[] = [];
+  for (const r of allReminders) {
+    const occ = dueOccurrence(
+      {
+        scheduledAt: r.scheduledAt,
+        recurrence: r.recurrence,
+        recurrenceUntil: r.recurrenceUntil,
+        notifyBeforeMinutes: r.notifyBeforeMinutes,
+        lastDismissedAt: r.lastDismissedAt,
+      },
+      now,
+    );
+    if (occ) {
+      dueReminders.push({
+        id: r.id,
+        title: r.title,
+        body: r.body,
+        color: r.color,
+        occurrenceISO: occ.toISOString(),
+        recurring: r.recurrence !== "NONE",
+      });
+    }
+  }
+  dueReminders.sort(
+    (a, b) => new Date(a.occurrenceISO).getTime() - new Date(b.occurrenceISO).getTime(),
+  );
+
   return (
-    <AppShell user={user} notifications={notifications} swaps={swaps}>
+    <AppShell
+      user={user}
+      notifications={notifications}
+      swaps={swaps}
+      reminders={dueReminders}
+    >
       {!user.emailVerified ? <VerifyBanner email={user.email} /> : null}
       {children}
     </AppShell>

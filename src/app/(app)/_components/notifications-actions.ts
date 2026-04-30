@@ -6,6 +6,23 @@ import { getSessionUser, setActiveOrg } from "@/lib/session";
 
 type Result = { ok: true } | { ok: false; error: string };
 
+// Re-export so the notification bell can dismiss reminders without
+// pulling in actions from /calendar.
+export async function dismissReminderFromBellAction(id: string): Promise<Result> {
+  const user = await getSessionUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+  const existing = await prisma.personalReminder.findFirst({
+    where: { id, userId: user.id },
+  });
+  if (!existing) return { ok: false, error: "Reminder not found." };
+  await prisma.personalReminder.update({
+    where: { id },
+    data: { lastDismissedAt: new Date() },
+  });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function acceptNotificationInviteAction(token: string): Promise<Result> {
   const user = await getSessionUser();
   if (!user) return { ok: false, error: "Not signed in." };

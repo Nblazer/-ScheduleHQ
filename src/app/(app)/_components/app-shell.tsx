@@ -16,12 +16,20 @@ import {
   BookOpen,
   DollarSign,
   Contact,
+  Briefcase,
+  MessageCircle,
+  User as UserIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
 import { LogoMark } from "@/components/logo";
 import { OrgSwitcher } from "./org-switcher";
-import { NotificationBell, type NotificationInvite, type NotificationSwap } from "./notifications";
+import {
+  NotificationBell,
+  type NotificationInvite,
+  type NotificationSwap,
+  type NotificationReminder,
+} from "./notifications";
 
 type Item = {
   href: string;
@@ -30,9 +38,11 @@ type Item = {
   minRole?: "OWNER" | "ADMIN" | "MANAGER" | "EMPLOYEE";
 };
 
+type Section = "work" | "chat" | "personal";
+
 const RANK = { OWNER: 4, ADMIN: 3, MANAGER: 2, EMPLOYEE: 1 } as const;
 
-const NAV: Item[] = [
+const WORK_NAV: Item[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/schedule", label: "Schedule", icon: CalendarDays },
   { href: "/timesheet", label: "Timesheet", icon: DollarSign },
@@ -44,20 +54,45 @@ const NAV: Item[] = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
+const PERSONAL_NAV: Item[] = [
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/settings", label: "Profile & plan", icon: UserIcon },
+];
+
+const CHAT_NAV: Item[] = [{ href: "/chat", label: "Chat", icon: MessageCircle }];
+
+function sectionFromPath(pathname: string): Section {
+  if (pathname.startsWith("/calendar")) return "personal";
+  if (pathname.startsWith("/chat")) return "chat";
+  return "work";
+}
+
+const TABS: { id: Section; label: string; icon: React.ComponentType<{ className?: string }>; href: string }[] = [
+  { id: "work", label: "Work", icon: Briefcase, href: "/dashboard" },
+  { id: "chat", label: "Chat", icon: MessageCircle, href: "/chat" },
+  { id: "personal", label: "Personal", icon: UserIcon, href: "/calendar" },
+];
+
 export function AppShell({
   user,
   notifications,
   swaps,
+  reminders,
   children,
 }: {
   user: SessionUser;
   notifications: NotificationInvite[];
   swaps: NotificationSwap[];
+  reminders: NotificationReminder[];
   children: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
-  const allowed = NAV.filter((n) => !n.minRole || RANK[user.role] >= RANK[n.minRole]);
+  const section = sectionFromPath(pathname);
+
+  const navForSection: Item[] =
+    section === "personal" ? PERSONAL_NAV : section === "chat" ? CHAT_NAV : WORK_NAV;
+  const allowed = navForSection.filter((n) => !n.minRole || RANK[user.role] >= RANK[n.minRole]);
 
   return (
     <div className="min-h-screen flex">
@@ -69,24 +104,66 @@ export function AppShell({
       )}
       <aside
         className={cn(
-          "fixed md:sticky top-0 h-screen w-64 shrink-0 border-r border-border bg-card z-50 transition-transform md:translate-x-0",
+          "fixed md:sticky top-0 h-screen w-64 shrink-0 border-r border-border bg-card z-50 transition-transform md:translate-x-0 flex flex-col",
           open ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         )}
       >
-        <div className="h-16 px-3 flex items-center gap-2 border-b border-border">
+        {/* Header: org switcher (Work) or branded title (Chat / Personal) */}
+        <div className="h-16 px-3 flex items-center gap-2 border-b border-border shrink-0">
           <div className="pl-2">
-            <LogoMark src={user.organizationLogoDataUrl} alt={user.organizationName} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <OrgSwitcher
-              orgs={user.orgs}
-              currentOrgId={user.organizationId}
-              currentOrgName={user.organizationName}
-              currentRole={user.role}
+            <LogoMark
+              src={section === "work" ? user.organizationLogoDataUrl : null}
+              alt={section === "work" ? user.organizationName : "ScheduleHQ"}
             />
           </div>
+          <div className="flex-1 min-w-0">
+            {section === "work" ? (
+              <OrgSwitcher
+                orgs={user.orgs}
+                currentOrgId={user.organizationId}
+                currentOrgName={user.organizationName}
+                currentRole={user.role}
+              />
+            ) : (
+              <div className="px-2">
+                <div className="font-semibold text-sm truncate">
+                  {section === "chat" ? "Chat" : "Personal"}
+                </div>
+                <div className="text-[11px] text-muted-foreground uppercase tracking-wider">
+                  {user.name}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        <nav className="p-3 space-y-1">
+
+        {/* Top-level section tabs */}
+        <div className="px-3 pt-3">
+          <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted/50 p-1">
+            {TABS.map((t) => {
+              const active = section === t.id;
+              return (
+                <Link
+                  key={t.id}
+                  href={t.href}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "flex flex-col items-center gap-0.5 rounded-md py-1.5 text-[11px] font-medium transition",
+                    active
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <t.icon className="h-3.5 w-3.5" />
+                  {t.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Section nav */}
+        <nav className="p-3 space-y-1 flex-1 overflow-y-auto scrollbar-thin">
           {allowed.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
             return (
@@ -107,7 +184,8 @@ export function AppShell({
             );
           })}
         </nav>
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border">
+
+        <div className="p-3 border-t border-border shrink-0">
           <UserMenu user={user} />
         </div>
       </aside>
@@ -122,7 +200,7 @@ export function AppShell({
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex-1" />
-          <NotificationBell invites={notifications} swaps={swaps} />
+          <NotificationBell invites={notifications} swaps={swaps} reminders={reminders} />
           <div className="hidden sm:flex flex-col items-end">
             <div className="text-sm font-medium">{user.name}</div>
             <div className="text-xs text-muted-foreground">{user.email}</div>

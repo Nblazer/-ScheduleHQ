@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 import { randomToken, slugify } from "./utils";
 import { sendEmail, verificationEmail, inviteEmail, addedToOrgEmail } from "./email";
+import { checkMemberLimit, checkWorkspaceLimit } from "./plan";
 import type { Role } from "@prisma/client";
 
 const VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24; // 24h
@@ -27,6 +28,18 @@ export async function createAdditionalWorkspace(params: {
   userId: string;
   orgName: string;
 }) {
+  // Plan-limit enforcement: count workspaces this user already owns.
+  const ownerUser = await prisma.user.findUnique({
+    where: { id: params.userId },
+    select: { plan: true },
+  });
+  if (!ownerUser) throw new Error("User not found.");
+  const owned = await prisma.membership.count({
+    where: { userId: params.userId, role: "OWNER", active: true },
+  });
+  const violation = checkWorkspaceLimit(ownerUser.plan, owned);
+  if (violation) throw new Error(violation);
+
   let slug = slugify(params.orgName) || "org";
   let attempt = 0;
   while (await prisma.organization.findUnique({ where: { slug } })) {
@@ -164,6 +177,20 @@ export async function inviteToOrganization(params: {
     if (already && already.active) {
       throw new Error("This user is already a member of this workspace.");
     }
+  }
+
+  // Plan-limit enforcement: the workspace OWNER's plan caps total active members.
+  const owner = await prisma.membership.findFirst({
+    where: { organizationId: params.organizationId, role: "OWNER", active: true },
+    include: { user: { select: { plan: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  if (owner) {
+    const activeMembers = await prisma.membership.count({
+      where: { organizationId: params.organizationId, active: true },
+    });
+    const violation = checkMemberLimit(owner.user.plan, activeMembers);
+    if (violation) throw new Error(violation);
   }
 
   // If there's already a pending, non-expired invite for this email/org pair,

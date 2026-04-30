@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Check, X, Inbox, ArrowLeftRight } from "lucide-react";
+import { Bell, Check, X, Inbox, ArrowLeftRight, BellRing } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import {
   acceptNotificationInviteAction,
   declineNotificationInviteAction,
+  dismissReminderFromBellAction,
 } from "./notifications-actions";
 import { acceptSwapAction, declineSwapAction } from "../schedule/swap-actions";
 
@@ -24,18 +25,29 @@ export type NotificationInvite = {
 export type NotificationSwap = {
   id: string;
   requesterName: string;
-  myShift: string | null; // pretty string if this is a swap; null if give
+  myShift: string | null;
   theirShift: string;
   note: string | null;
   createdAt: string;
 };
 
+export type NotificationReminder = {
+  id: string;
+  title: string;
+  body: string | null;
+  color: string;
+  occurrenceISO: string;
+  recurring: boolean;
+};
+
 export function NotificationBell({
   invites,
   swaps,
+  reminders,
 }: {
   invites: NotificationInvite[];
   swaps: NotificationSwap[];
+  reminders: NotificationReminder[];
 }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -56,7 +68,7 @@ export function NotificationBell({
     };
   }, [open]);
 
-  const count = invites.length + swaps.length;
+  const count = invites.length + swaps.length + reminders.length;
 
   return (
     <div className="relative" ref={ref}>
@@ -91,11 +103,14 @@ export function NotificationBell({
               </div>
               <div className="text-sm font-medium">You're all caught up</div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                Invites and swap requests show up here.
+                Reminders, invites, and swap requests show up here.
               </div>
             </div>
           ) : (
             <div className="max-h-[28rem] overflow-y-auto scrollbar-thin divide-y divide-border">
+              {reminders.map((r) => (
+                <ReminderNotification key={r.id} reminder={r} onDone={() => setOpen(false)} />
+              ))}
               {swaps.map((s) => (
                 <SwapNotification key={s.id} swap={s} onDone={() => setOpen(false)} />
               ))}
@@ -108,6 +123,95 @@ export function NotificationBell({
       )}
     </div>
   );
+}
+
+const COLOR_BG: Record<string, string> = {
+  indigo: "bg-indigo-500",
+  violet: "bg-violet-500",
+  emerald: "bg-emerald-500",
+  amber: "bg-amber-500",
+  rose: "bg-rose-500",
+  sky: "bg-sky-500",
+};
+
+function ReminderNotification({
+  reminder,
+  onDone,
+}: {
+  reminder: NotificationReminder;
+  onDone: () => void;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const [pending, start] = React.useTransition();
+  const when = new Date(reminder.occurrenceISO);
+  const past = when.getTime() <= Date.now();
+  const dateLabel = when.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  const timeLabel = when.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  const dismiss = () =>
+    start(async () => {
+      const r = await dismissReminderFromBellAction(reminder.id);
+      if (r.ok) {
+        router.refresh();
+        if (reminder.recurring) toast.info("Skipped this occurrence.");
+      } else toast.error(r.error);
+    });
+
+  return (
+    <div className="p-4 space-y-2">
+      <div className="flex items-start gap-2">
+        <BellRing className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+        <div className="min-w-0 flex-1">
+          <div className="font-medium text-sm flex items-center gap-2">
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full shrink-0",
+                COLOR_BG[reminder.color] ?? COLOR_BG.indigo,
+              )}
+            />
+            <span className="truncate">{reminder.title}</span>
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            {past ? "Now" : `In ${humanRelative(when)}`} · {dateLabel} · {timeLabel}
+            {reminder.recurring ? " · Repeats" : ""}
+          </div>
+          {reminder.body && (
+            <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+              {reminder.body}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={dismiss}
+          loading={pending}
+        >
+          <Check className="h-3.5 w-3.5" /> Got it
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function humanRelative(when: Date) {
+  const diff = when.getTime() - Date.now();
+  const min = Math.round(diff / 60000);
+  if (min < 60) return `${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.round(h / 24);
+  return `${d}d`;
 }
 
 function SwapNotification({
