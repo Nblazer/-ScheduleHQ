@@ -19,6 +19,7 @@ import {
   Briefcase,
   MessageCircle,
   User as UserIcon,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
@@ -51,18 +52,20 @@ const WORK_NAV: Item[] = [
   { href: "/contacts", label: "Contacts", icon: Contact },
   { href: "/reports", label: "Reports", icon: Inbox },
   { href: "/team", label: "Team", icon: Users, minRole: "MANAGER" },
-  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 const PERSONAL_NAV: Item[] = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/settings", label: "Profile & plan", icon: UserIcon },
+  { href: "/settings/account", label: "Account", icon: UserIcon },
+  { href: "/settings/workspaces", label: "Workspaces", icon: Settings },
+  { href: "/settings/plan", label: "Plan", icon: Sparkles },
 ];
 
 const CHAT_NAV: Item[] = [{ href: "/chat", label: "Chat", icon: MessageCircle }];
 
 function sectionFromPath(pathname: string): Section {
   if (pathname.startsWith("/calendar")) return "personal";
+  if (pathname.startsWith("/settings")) return "personal";
   if (pathname.startsWith("/chat")) return "chat";
   return "work";
 }
@@ -70,7 +73,7 @@ function sectionFromPath(pathname: string): Section {
 const TABS: { id: Section; label: string; icon: React.ComponentType<{ className?: string }>; href: string }[] = [
   { id: "work", label: "Work", icon: Briefcase, href: "/dashboard" },
   { id: "chat", label: "Chat", icon: MessageCircle, href: "/chat" },
-  { id: "personal", label: "Personal", icon: UserIcon, href: "/calendar" },
+  { id: "personal", label: "You", icon: UserIcon, href: "/calendar" },
 ];
 
 export function AppShell({

@@ -31,6 +31,7 @@ import {
   setMemberWageAction,
   type InviteActionResult,
 } from "../actions";
+import { ProfileDialog, type ProfileSeed } from "../../_components/profile-dialog";
 
 type Member = {
   id: string;
@@ -77,6 +78,7 @@ export function TeamView({
     alreadyHasAccount?: boolean;
   } | null>(null);
   const [wageDialog, setWageDialog] = React.useState<Member | null>(null);
+  const [profileDialog, setProfileDialog] = React.useState<ProfileSeed | null>(null);
 
   return (
     <>
@@ -134,6 +136,7 @@ export function TeamView({
                 currentRole={currentRole}
                 assignableRoles={assignableRoles}
                 onSetWage={() => setWageDialog(m)}
+                onViewProfile={() => setProfileDialog({ id: m.id, name: m.name })}
               />
             ))}
           </div>
@@ -163,6 +166,9 @@ export function TeamView({
       {wageDialog && (
         <WageDialog member={wageDialog} onClose={() => setWageDialog(null)} />
       )}
+      {profileDialog && (
+        <ProfileDialog seed={profileDialog} onClose={() => setProfileDialog(null)} />
+      )}
     </>
   );
 }
@@ -173,12 +179,14 @@ function MemberRow({
   currentRole,
   assignableRoles,
   onSetWage,
+  onViewProfile,
 }: {
   member: Member;
   currentUserId: string;
   currentRole: Role;
   assignableRoles: Role[];
   onSetWage: () => void;
+  onViewProfile: () => void;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -189,7 +197,12 @@ function MemberRow({
 
   return (
     <div className="py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-      <div className="flex items-center gap-3 min-w-0">
+      <button
+        type="button"
+        onClick={onViewProfile}
+        className="flex items-center gap-3 min-w-0 text-left rounded-md px-1.5 py-1 -ml-1.5 hover:bg-muted transition"
+        title="View profile"
+      >
         <div className="h-9 w-9 rounded-full bg-primary/20 text-primary font-semibold flex items-center justify-center text-sm shrink-0">
           {member.name.slice(0, 1).toUpperCase()}
         </div>
@@ -202,7 +215,7 @@ function MemberRow({
           </div>
           <div className="text-xs text-muted-foreground truncate">{member.email}</div>
         </div>
-      </div>
+      </button>
 
       <div className="flex items-center gap-2">
         {canChangeRole ? (
