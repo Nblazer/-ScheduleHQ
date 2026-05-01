@@ -32,6 +32,15 @@ export const acceptInviteSchema = z.object({
   password: passwordSchema,
 });
 
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(10),
+  password: passwordSchema,
+});
+
 // Recurrence rule: "weekly" on specific days of week, for N weeks.
 // daysOfWeek uses 0=Sun..6=Sat. weeks is inclusive of the first week.
 // Cap at 26 weeks (~6 months) so a runaway series can't explode the DB.

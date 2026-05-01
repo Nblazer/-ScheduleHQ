@@ -98,6 +98,17 @@ export function verificationEmail(p: { name: string; token: string }) {
   `);
 }
 
+export function resetPasswordEmail(p: { name: string; token: string }) {
+  const url = `${appUrl}/reset-password?token=${p.token}`;
+  return layout(`
+    <h1 style="font-size:20px;margin:0 0 12px">Reset your password</h1>
+    <p style="margin:0 0 18px;line-height:1.6">Hi ${escape(p.name)} — someone (hopefully you) asked to reset the ScheduleHQ password for this email. Click below to set a new one. The link expires in 1 hour.</p>
+    <p style="margin:0 0 24px">${button(url, "Reset password")}</p>
+    <p style="margin:0 0 12px;color:#6b7280;font-size:13px">If you didn't request this, you can ignore this email — your password stays the same and the link expires on its own.</p>
+    <p style="margin:0;color:#6b7280;font-size:13px">Or paste this link into your browser:<br/><span style="word-break:break-all">${url}</span></p>
+  `);
+}
+
 export function addedToOrgEmail(p: { name: string; inviterName: string; orgName: string }) {
   const url = `${appUrl}/dashboard`;
   return layout(`

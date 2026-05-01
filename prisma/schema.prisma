@@ -106,6 +106,7 @@ model User {
   memberships         Membership[]
   sessions            Session[]
   verifications       EmailVerification[]
+  passwordResets      PasswordReset[]
   shifts              Shift[]        @relation("ShiftEmployee")
   shiftsCreated       Shift[]        @relation("ShiftCreator")
   dayNotesCreated     DayNote[]
@@ -164,6 +165,21 @@ model EmailVerification {
   expiresAt  DateTime
   usedAt     DateTime?
   createdAt  DateTime @default(now())
+}
+
+// One-time tokens emailed to a user when they click "Forgot password" on
+// the login page. Short TTL (1h), single-use, all sessions for the user
+// are killed when the reset is consumed so an attacker can't ride along.
+model PasswordReset {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Invite {

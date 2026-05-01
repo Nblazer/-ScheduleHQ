@@ -1,12 +1,13 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 import { randomToken, slugify } from "./utils";
-import { sendEmail, verificationEmail, inviteEmail, addedToOrgEmail } from "./email";
+import { sendEmail, verificationEmail, inviteEmail, addedToOrgEmail, resetPasswordEmail } from "./email";
 import { checkMemberLimit, checkWorkspaceLimit } from "./plan";
 import type { Role } from "@prisma/client";
 
 const VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24; // 24h
 const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+const PASSWORD_RESET_TTL_MS = 1000 * 60 * 60; // 1h
 
 export async function hashPassword(password: string) {
   return bcrypt.hash(password, 10);
@@ -301,4 +302,61 @@ export async function acceptInvite(params: { token: string; password: string }) 
   });
 
   return { user, organizationId: invite.organizationId };
+}
+
+// "I forgot my password" — emails the user a one-time link if the address
+// matches a real account. Always returns silently (no leak of whether the
+// email exists). 1-hour TTL.
+export async function requestPasswordReset(rawEmail: string) {
+  const email = rawEmail.toLowerCase().trim();
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || !user.active) return;
+
+  const token = randomToken(24);
+  await prisma.passwordReset.create({
+    data: {
+      userId: user.id,
+      token,
+      expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+    },
+  });
+
+  await sendEmail(
+    user.email,
+    "Reset your ScheduleHQ password",
+    resetPasswordEmail({ name: user.name, token }),
+  ).catch((e) => console.error("password reset email failed", e));
+}
+
+// Consume a password reset token: validate, update the password, kill all
+// active sessions for the user (prevents an old session from staying
+// authenticated through the reset).
+export async function consumePasswordReset(params: { token: string; password: string }) {
+  const record = await prisma.passwordReset.findUnique({ where: { token: params.token } });
+  if (!record) throw new Error("This reset link is invalid.");
+  if (record.usedAt) throw new Error("This reset link has already been used.");
+  if (record.expiresAt < new Date()) {
+    throw new Error("This reset link has expired. Request a new one.");
+  }
+
+  const passwordHash = await hashPassword(params.password);
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: record.userId },
+      data: { passwordHash },
+    }),
+    prisma.passwordReset.update({
+      where: { id: record.id },
+      data: { usedAt: new Date() },
+    }),
+    // Kill any logged-in sessions for this user — forces fresh login from
+    // every device after a password change.
+    prisma.session.deleteMany({ where: { userId: record.userId } }),
+    // Also invalidate any other outstanding reset tokens for this user.
+    prisma.passwordReset.updateMany({
+      where: { userId: record.userId, usedAt: null, NOT: { id: record.id } },
+      data: { usedAt: new Date() },
+    }),
+  ]);
 }

@@ -4,13 +4,21 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import {
   acceptInvite,
+  consumePasswordReset,
   consumeVerificationToken,
   createOrganizationAndOwner,
+  requestPasswordReset,
   resendVerification,
   verifyPassword,
 } from "@/lib/auth";
 import { createSession, destroySession, getSessionUser } from "@/lib/session";
-import { loginSchema, signupSchema, acceptInviteSchema } from "@/lib/validation";
+import {
+  loginSchema,
+  signupSchema,
+  acceptInviteSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from "@/lib/validation";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -83,6 +91,38 @@ export async function resendVerificationAction(): Promise<ActionResult> {
     console.error("[email] resendVerification failed:", message);
     return { ok: false, error: `Email send failed: ${message}` };
   }
+}
+
+export async function forgotPasswordAction(
+  _: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = forgotPasswordSchema.safeParse({ email: formData.get("email") });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Enter a valid email." };
+  }
+  // Always succeed — we don't want to leak whether the email exists.
+  await requestPasswordReset(parsed.data.email);
+  return { ok: true };
+}
+
+export async function resetPasswordAction(
+  _: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = resetPasswordSchema.safeParse({
+    token: formData.get("token"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+  try {
+    await consumePasswordReset(parsed.data);
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : "Could not reset password." };
+  }
+  redirect("/login?reset=1");
 }
 
 export async function acceptInviteAction(
