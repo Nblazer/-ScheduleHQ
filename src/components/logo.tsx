@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-const DEFAULT_LOGO_SRC = "/logo-mark.svg";
+const DEFAULT_LOGO_SRC = "/logo-mark.png";
 
 export function LogoMark({
   className = "",
