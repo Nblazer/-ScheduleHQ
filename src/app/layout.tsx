@@ -25,6 +25,18 @@ export const metadata: Metadata = {
   description:
     "ScheduleHQ is the free, professional shift scheduling platform for restaurants, retail, and service teams. Build schedules, post announcements, and manage your team in one place.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
+  // Order matters: modern browsers pick the first compatible icon in the list.
+  // SVG goes first so vector-capable browsers (Chrome, Edge, Firefox, Safari)
+  // render the favicon razor-sharp at any density. ICO is the legacy fallback.
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "16x16 32x32", type: "image/x-icon" },
+      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: ["/favicon.ico"],
+  },
 };
 
 export const viewport = {
