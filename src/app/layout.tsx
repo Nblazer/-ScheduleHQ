@@ -25,15 +25,17 @@ export const metadata: Metadata = {
   description:
     "ScheduleHQ is the free, professional shift scheduling platform for restaurants, retail, and service teams. Build schedules, post announcements, and manage your team in one place.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
-  // Square PNGs at the right sizes for each context. Next auto-serves anything
-  // named icon*.png from src/app/. The 32px is purpose-built for browser tabs;
-  // the 1024px covers PWA, hi-DPI, and social-sharing slots.
+  // Multi-format icon set. The .ico ships first because Chrome auto-requests
+  // /favicon.ico for the tab and we want it to find a real file there.
+  // PNGs cover modern hi-DPI / PWA / social slots.
   icons: {
     icon: [
+      { url: "/favicon.ico", sizes: "16x16 32x32 48x48", type: "image/x-icon" },
       { url: "/icon0.png", sizes: "32x32", type: "image/png" },
       { url: "/icon.png", sizes: "1024x1024", type: "image/png" },
     ],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: ["/favicon.ico"],
   },
 };
 
